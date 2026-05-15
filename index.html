@@ -1,0 +1,1149 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Comissão Positiva</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --dark:#212B37;--navy:#34425C;--green:#BEF575;--gray:#BBC0C9;
+  --mid:#788192;--white:#fff;--bg:#F0F2F5;--card:#fff;
+  --danger:#E74C3C;--warning:#F39C12;--success:#27AE60;
+  --radius:12px;--shadow:0 2px 12px rgba(33,43,55,.10);
+}
+body{font-family:'Nunito',sans-serif;background:var(--bg);color:var(--dark);min-height:100vh}
+
+/* ── LOGIN ── */
+#login-screen{
+  min-height:100vh;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,var(--dark) 0%,var(--navy) 100%);
+}
+.login-box{
+  background:var(--white);border-radius:20px;padding:48px 40px;
+  width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,.3);
+}
+.login-logo{text-align:center;margin-bottom:32px}
+.login-logo .logo-mark{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:72px;height:72px;background:var(--dark);border-radius:16px;
+  font-size:32px;font-weight:900;color:var(--green);letter-spacing:-2px;
+  margin-bottom:12px;
+}
+.login-logo h1{font-size:22px;font-weight:800;color:var(--dark)}
+.login-logo p{color:var(--mid);font-size:14px;margin-top:4px}
+.form-group{margin-bottom:18px}
+.form-group label{display:block;font-weight:700;font-size:13px;color:var(--navy);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
+.form-group input{
+  width:100%;padding:12px 16px;border:2px solid var(--gray);border-radius:10px;
+  font-family:inherit;font-size:15px;color:var(--dark);
+  transition:border-color .2s;outline:none;
+}
+.form-group input:focus{border-color:var(--navy)}
+.btn-login{
+  width:100%;padding:14px;background:var(--dark);color:var(--white);
+  border:none;border-radius:10px;font-family:inherit;font-size:16px;
+  font-weight:800;cursor:pointer;transition:background .2s;margin-top:8px;
+}
+.btn-login:hover{background:var(--navy)}
+.login-error{
+  color:var(--danger);font-size:13px;text-align:center;
+  margin-top:12px;display:none;
+}
+
+/* ── APP ── */
+#app{display:none}
+.header{
+  background:var(--dark);padding:0 32px;height:64px;
+  display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:100;box-shadow:var(--shadow);
+}
+.header-logo{display:flex;align-items:center;gap:12px}
+.header-logo .mark{
+  width:40px;height:40px;background:var(--green);border-radius:8px;
+  display:flex;align-items:center;justify-content:center;
+  font-weight:900;font-size:16px;color:var(--dark);
+}
+.header-logo span{color:var(--white);font-weight:800;font-size:16px}
+.header-logo .month{color:var(--gray);font-size:13px;margin-left:8px}
+.header-right{display:flex;align-items:center;gap:16px}
+.user-badge{
+  display:flex;align-items:center;gap:8px;
+  background:rgba(255,255,255,.1);padding:6px 14px;border-radius:20px;
+}
+.user-badge .avatar{
+  width:28px;height:28px;background:var(--green);border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:12px;font-weight:900;color:var(--dark);
+}
+.user-badge .uname{color:var(--white);font-size:13px;font-weight:700}
+.user-badge .urole{color:var(--gray);font-size:11px}
+.btn-logout{
+  background:transparent;border:1.5px solid rgba(255,255,255,.3);
+  color:var(--white);padding:6px 14px;border-radius:8px;
+  font-family:inherit;font-size:13px;cursor:pointer;transition:.2s;
+}
+.btn-logout:hover{background:rgba(255,255,255,.1)}
+
+/* ── TABS ── */
+.tabs-bar{
+  background:var(--white);border-bottom:1px solid #e8eaed;
+  padding:0 32px;display:flex;gap:4px;
+}
+.tab-btn{
+  padding:16px 20px;border:none;background:transparent;
+  font-family:inherit;font-size:14px;font-weight:700;color:var(--mid);
+  cursor:pointer;border-bottom:3px solid transparent;transition:.2s;
+  white-space:nowrap;
+}
+.tab-btn:hover{color:var(--navy)}
+.tab-btn.active{color:var(--dark);border-bottom-color:var(--green)}
+.tab-btn .badge{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:20px;height:20px;background:var(--green);color:var(--dark);
+  border-radius:50%;font-size:10px;font-weight:900;margin-left:6px;
+}
+
+/* ── CONTENT ── */
+.content{padding:28px 32px;max-width:1400px;margin:0 auto}
+
+/* ── KPI CARDS ── */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:28px}
+.kpi-card{
+  background:var(--white);border-radius:var(--radius);padding:24px;
+  box-shadow:var(--shadow);border-left:4px solid var(--green);
+}
+.kpi-card.highlight{background:var(--dark);border-left-color:var(--green)}
+.kpi-card.highlight .kpi-label{color:var(--gray)}
+.kpi-card.highlight .kpi-value{color:var(--green)}
+.kpi-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--mid);margin-bottom:8px}
+.kpi-value{font-size:32px;font-weight:900;color:var(--dark)}
+.kpi-sub{font-size:13px;color:var(--mid);margin-top:4px}
+
+/* ── CHARTS GRID ── */
+.charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:28px}
+@media(max-width:900px){.charts-grid{grid-template-columns:1fr}}
+.chart-card{background:var(--white);border-radius:var(--radius);padding:24px;box-shadow:var(--shadow)}
+.chart-card h3{font-size:15px;font-weight:800;color:var(--dark);margin-bottom:16px}
+.chart-card canvas{max-height:260px}
+
+/* ── TABLE ── */
+.table-card{background:var(--white);border-radius:var(--radius);padding:24px;box-shadow:var(--shadow);margin-bottom:28px}
+.table-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.table-header h3{font-size:15px;font-weight:800;color:var(--dark)}
+.search-box{
+  padding:8px 14px;border:1.5px solid var(--gray);border-radius:8px;
+  font-family:inherit;font-size:13px;outline:none;width:220px;
+}
+.search-box:focus{border-color:var(--navy)}
+.data-table{width:100%;border-collapse:collapse}
+.data-table th{
+  text-align:left;padding:10px 12px;font-size:12px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.5px;color:var(--mid);
+  border-bottom:2px solid #e8eaed;
+}
+.data-table td{
+  padding:12px 12px;font-size:14px;border-bottom:1px solid #f0f2f5;
+  vertical-align:middle;
+}
+.data-table tr:hover td{background:#f8f9fa}
+.data-table tr.mine td{background:#f0fff4}
+.data-table tr.mine td{border-left:3px solid var(--green)}
+.tag{
+  display:inline-flex;align-items:center;padding:3px 10px;
+  border-radius:20px;font-size:12px;font-weight:700;
+}
+.tag-new{background:#e8f5e9;color:#2e7d32}
+.tag-renewal{background:#e3f2fd;color:#1565c0}
+.tag-disputed{background:#fff3e0;color:#e65100}
+.tag-resolved{background:#f3e5f5;color:#6a1b9a}
+.tag-coord{background:#fce4ec;color:#880e4f;font-size:11px}
+.btn-dispute{
+  padding:4px 10px;background:transparent;border:1.5px solid var(--gray);
+  border-radius:6px;font-family:inherit;font-size:12px;font-weight:700;
+  color:var(--mid);cursor:pointer;transition:.2s;
+}
+.btn-dispute:hover{border-color:var(--warning);color:var(--warning)}
+.btn-sm{
+  padding:4px 10px;border:none;border-radius:6px;
+  font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;
+}
+.btn-approve{background:#e8f5e9;color:#2e7d32}
+.btn-transfer{background:#fff3e0;color:#e65100}
+.btn-reject{background:#ffebee;color:#c62828}
+
+/* ── RANKING TABLE ── */
+.ranking-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #f0f2f5}
+.rank-pos{font-size:18px;font-weight:900;color:var(--gray);width:28px;text-align:center}
+.rank-pos.top{color:var(--green)}
+.rank-name{flex:1;font-weight:700;font-size:15px}
+.rank-bar-wrap{width:160px;height:8px;background:#f0f2f5;border-radius:4px;overflow:hidden}
+.rank-bar{height:100%;background:var(--green);border-radius:4px;transition:width .6s}
+.rank-val{font-size:15px;font-weight:900;color:var(--dark);min-width:80px;text-align:right}
+.rank-detail{font-size:12px;color:var(--mid)}
+
+/* ── DISPUTES ── */
+.dispute-card{
+  background:var(--white);border-radius:var(--radius);padding:20px;
+  box-shadow:var(--shadow);margin-bottom:12px;
+  border-left:4px solid var(--warning);
+}
+.dispute-card.resolved{border-left-color:var(--success)}
+.dispute-meta{display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap}
+.dispute-reason{font-size:14px;color:var(--dark);margin:8px 0}
+.dispute-decision{
+  background:#f8f9fa;border-radius:8px;padding:10px 14px;
+  font-size:13px;color:var(--mid);margin-top:8px;
+}
+.dispute-actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+
+/* ── ADMIN PANEL ── */
+.admin-section{background:var(--white);border-radius:var(--radius);padding:24px;box-shadow:var(--shadow);margin-bottom:24px}
+.admin-section h3{font-size:16px;font-weight:800;color:var(--dark);margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #f0f2f5}
+.user-list{display:grid;gap:10px}
+.user-row{
+  display:flex;align-items:center;gap:12px;padding:12px 16px;
+  background:#f8f9fa;border-radius:10px;
+}
+.user-avatar{
+  width:40px;height:40px;background:var(--navy);border-radius:10px;
+  display:flex;align-items:center;justify-content:center;
+  font-weight:900;color:var(--white);font-size:14px;
+}
+.user-info{flex:1}
+.user-info .un{font-weight:700;font-size:14px}
+.user-info .up{font-size:12px;color:var(--mid)}
+.btn-del{
+  padding:6px 12px;background:#ffebee;color:#c62828;border:none;
+  border-radius:6px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;
+}
+.btn-edit-pw{
+  padding:6px 12px;background:#e3f2fd;color:#1565c0;border:none;
+  border-radius:6px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;margin-right:6px;
+}
+.add-user-form{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+.add-user-form input{
+  flex:1;min-width:140px;padding:10px 14px;border:1.5px solid var(--gray);
+  border-radius:8px;font-family:inherit;font-size:14px;outline:none;
+}
+.add-user-form input:focus{border-color:var(--navy)}
+.btn-add{
+  padding:10px 20px;background:var(--dark);color:var(--white);border:none;
+  border-radius:8px;font-family:inherit;font-size:14px;font-weight:800;cursor:pointer;
+}
+
+/* ── MODAL ── */
+.modal-overlay{
+  display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);
+  z-index:1000;align-items:center;justify-content:center;
+}
+.modal-overlay.open{display:flex}
+.modal{
+  background:var(--white);border-radius:16px;padding:32px;
+  width:100%;max-width:500px;max-height:90vh;overflow-y:auto;
+  box-shadow:0 20px 60px rgba(0,0,0,.3);
+}
+.modal h3{font-size:18px;font-weight:800;margin-bottom:20px;color:var(--dark)}
+.modal textarea{
+  width:100%;padding:12px 14px;border:1.5px solid var(--gray);border-radius:8px;
+  font-family:inherit;font-size:14px;resize:vertical;min-height:100px;outline:none;
+}
+.modal textarea:focus{border-color:var(--navy)}
+.modal-info{
+  background:#f8f9fa;border-radius:8px;padding:12px 14px;
+  font-size:13px;color:var(--mid);margin-bottom:16px;
+}
+.modal-info strong{color:var(--dark)}
+.modal-actions{display:flex;gap:10px;margin-top:16px;justify-content:flex-end}
+.btn-cancel{
+  padding:10px 20px;background:#f0f2f5;color:var(--mid);border:none;
+  border-radius:8px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;
+}
+.btn-primary{
+  padding:10px 20px;background:var(--dark);color:var(--white);border:none;
+  border-radius:8px;font-family:inherit;font-size:14px;font-weight:800;cursor:pointer;
+}
+
+/* ── SECTION NAV ── */
+.section-nav{
+  display:flex;gap:8px;margin-bottom:24px;flex-wrap:wrap;
+}
+.sec-btn{
+  padding:8px 18px;border:1.5px solid var(--gray);border-radius:20px;
+  background:transparent;font-family:inherit;font-size:13px;font-weight:700;
+  color:var(--mid);cursor:pointer;transition:.2s;
+}
+.sec-btn:hover{border-color:var(--navy);color:var(--navy)}
+.sec-btn.active{background:var(--dark);color:var(--white);border-color:var(--dark)}
+
+/* ── MY HIGHLIGHT ── */
+.my-highlight-bar{
+  background:linear-gradient(135deg,var(--dark),var(--navy));
+  border-radius:var(--radius);padding:24px;margin-bottom:24px;
+  display:flex;align-items:center;gap:24px;flex-wrap:wrap;
+}
+.my-highlight-bar .mh-item{text-align:center}
+.my-highlight-bar .mh-val{font-size:28px;font-weight:900;color:var(--green)}
+.my-highlight-bar .mh-lbl{font-size:12px;color:var(--gray);font-weight:700;text-transform:uppercase}
+.my-highlight-bar .divider{width:1px;height:48px;background:rgba(255,255,255,.15)}
+.my-highlight-bar .mh-name{font-size:18px;font-weight:900;color:var(--white);flex:1}
+
+/* ── EMPTY STATE ── */
+.empty-state{
+  text-align:center;padding:60px 20px;color:var(--mid);
+}
+.empty-state .icon{font-size:48px;margin-bottom:12px}
+.empty-state p{font-size:15px}
+
+/* ── MISC ── */
+.section-panel{display:none}
+.section-panel.active{display:block}
+.page-title{font-size:22px;font-weight:900;color:var(--dark);margin-bottom:4px}
+.page-sub{font-size:14px;color:var(--mid);margin-bottom:24px}
+select{
+  padding:8px 14px;border:1.5px solid var(--gray);border-radius:8px;
+  font-family:inherit;font-size:13px;color:var(--dark);background:var(--white);
+  outline:none;cursor:pointer;
+}
+select:focus{border-color:var(--navy)}
+.flex-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.coordinator-notice{
+  background:#f0fff4;border:1.5px solid #c8e6c9;border-radius:10px;
+  padding:10px 16px;font-size:13px;color:#2e7d32;margin-bottom:20px;
+  font-weight:600;
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════ LOGIN ══════════════════ -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">
+      <div class="logo-mark">P+</div>
+      <h1>Comissão Positiva</h1>
+      <p>Sistema de controle e auditoria</p>
+    </div>
+    <div class="form-group">
+      <label>Usuário</label>
+      <input type="text" id="inp-user" placeholder="Seu nome de usuário" autocomplete="username">
+    </div>
+    <div class="form-group">
+      <label>Senha</label>
+      <input type="password" id="inp-pass" placeholder="Sua senha" autocomplete="current-password">
+    </div>
+    <button class="btn-login" onclick="doLogin()">Entrar</button>
+    <p class="login-error" id="login-error">Usuário ou senha incorretos.</p>
+  </div>
+</div>
+
+<!-- ══════════════════ APP ══════════════════ -->
+<div id="app">
+  <!-- HEADER -->
+  <header class="header">
+    <div class="header-logo">
+      <div class="mark">P+</div>
+      <span>Positiva</span>
+      <span class="month" id="hdr-month"></span>
+    </div>
+    <div class="header-right">
+      <div class="user-badge">
+        <div class="avatar" id="hdr-avatar"></div>
+        <div>
+          <div class="uname" id="hdr-name"></div>
+          <div class="urole" id="hdr-role"></div>
+        </div>
+      </div>
+      <button class="btn-logout" onclick="doLogout()">Sair</button>
+    </div>
+  </header>
+
+  <!-- TABS (unidades) -->
+  <div class="tabs-bar" id="tabs-bar"></div>
+
+  <!-- MAIN CONTENT -->
+  <div class="content">
+    <!-- Seção Nav -->
+    <div class="section-nav" id="section-nav"></div>
+
+    <!-- Paineis de Seção -->
+    <div id="panel-overview"  class="section-panel"></div>
+    <div id="panel-sales"     class="section-panel"></div>
+    <div id="panel-ranking"   class="section-panel"></div>
+    <div id="panel-disputes"  class="section-panel"></div>
+    <div id="panel-admin"     class="section-panel"></div>
+  </div>
+</div>
+
+<!-- ══════════════════ MODAL DISPUTA ══════════════════ -->
+<div class="modal-overlay" id="modal-dispute">
+  <div class="modal">
+    <h3>Contestar Venda</h3>
+    <div class="modal-info" id="dispute-sale-info"></div>
+    <p style="font-size:13px;font-weight:700;color:var(--mid);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Motivo da contestação</p>
+    <textarea id="dispute-reason" placeholder="Explique por que esta venda deveria ser creditada a você..."></textarea>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('modal-dispute')">Cancelar</button>
+      <button class="btn-primary" onclick="submitDispute()">Enviar Contestação</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL RESOLVER DISPUTA (COORD) -->
+<div class="modal-overlay" id="modal-resolve">
+  <div class="modal">
+    <h3>Resolver Disputa</h3>
+    <div class="modal-info" id="resolve-info"></div>
+    <p style="font-size:13px;font-weight:700;color:var(--mid);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Justificativa da decisão</p>
+    <textarea id="resolve-reason" placeholder="Descreva o motivo da sua decisão..."></textarea>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('modal-resolve')">Cancelar</button>
+      <button class="btn-sm btn-transfer" onclick="resolveDispute('transfer')" style="padding:10px 16px">Transferir venda</button>
+      <button class="btn-sm btn-approve" onclick="resolveDispute('keep')" style="padding:10px 16px">Manter original</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL TROCAR SENHA -->
+<div class="modal-overlay" id="modal-pw">
+  <div class="modal">
+    <h3>Alterar Senha</h3>
+    <div class="form-group" style="margin-top:8px">
+      <label>Nova Senha</label>
+      <input type="password" id="new-pw" placeholder="Digite a nova senha">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('modal-pw')">Cancelar</button>
+      <button class="btn-primary" onclick="saveNewPw()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════
+//  DADOS EMBUTIDOS
+// ══════════════════════════════════════════════
+const RAW_SALES  = [{"id": "20104", "student": "YAW OWUSU KYEI", "consultant": "KAIQUE PEREIRA SIQUEIRA", "type": "new", "commission": 50, "date": "14/04/2026", "contract": "INICIAÇÃO ADULTO PM 12 meses - DCC2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras"}, {"id": "20082", "student": "YAN BUZETTI BRAGA", "consultant": "ADRIELLY SANTANA SABINO", "type": "new", "commission": 50, "date": "07/04/2026", "contract": "BEBE I PM 12 meses - DCC1", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras"}, {"id": "20070", "student": "VICTÓRIA FELBERK DAMASCENO ALVES", "consultant": "ADRIELLY SANTANA SABINO", "type": "new", "commission": 50, "date": "26/03/2026", "contract": "INICIAÇÃO ADULTO PM 12 meses - DCC2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras"}, {"id": "20059", "student": "VALERIA PENHA DE MELO", "consultant": "ADRIELLY SANTANA SABINO", "type": "new", "commission": 50, "date": "01/04/2026", "contract": "HIDROGINASTICA PM 12 meses - DCC3", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras"}, {"id": "20135", "student": "SOPHIE COUTINHO NEVES", "consultant": "ADRIELLY SANTANA SABINO", "type": "new", "commission": 50, "date": "20/04/2026", "contract": "BEBE I PM 12 meses- DCC2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras"}, {"id": "20124", "student": "NATHALIA TOREZANI DE ALBURQUERQUE", "consultant": "KAIQUE PEREIRA SIQUEIRA", "type": "new", "commission": 50, "date": "27/04/2026", "contract": "INICIAÇÃO ADULTO PM 6 meses - DCC2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras"}, {"id": "20129", "student": "MIGUEL AGUIAR ALVES", "consultant": "TAMIRIS DOS SANTOS OLIVEIRA", "type": "new", "commission": 50, "date": "08/10/2025", "contract": "BEBE I PM 12 meses- DCC2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras"}, {"id": "20079", "student": "MARIANA ROCHA VICENTE", "consultant": "MARIA EDUARDA LOPES FREITAS", "type": "new", "commission": 50, "date": "09/04/2026", "contract": "INICIAÇÃO ADULTO PM 6 meses - DCC2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras"}, {"id": "20046", "student": "MARIA LUIZA PROCOPIO RUFINO", "consultant": "MARIA EDUARDA LOPES FREITAS", "type": "new", "commission": 50, "date": "01/04/2026", "contract": "INICIAÇÃO INFANTIL PM 12 meses - DCC1", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras"}, {"id": "20131", "student": "LUIZA ROSA SOUZA", "consultant": "ADRIELLY SANTANA SABINO", "type": "new", "commission": 50, "date": "24/04/2026", "contract": "ADAPTAÇÃO PM 12 meses - DCC2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras"}, {"id": "20069", "student": "LUCIANO SILVA DOS SANTOS", "consultant": "MARIA EDUARDA SANTOS LOUSSURDO", "type": "new", "commission": 50, "date": "12/12/2025", "contract": "INICIAÇÃO ADULTO PM 12 meses - DCC2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras"}, {"id": "20102", "student": "LOUISE SOUZA DOS ANJOS", "consultant": "KAIQUE PEREIRA SIQUEIRA", "type": "new", "commission": 50, "date": "20/04/2026", "contract": "BEBE I PM 12 meses- DCC2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras"}, {"id": "20089", "student": "JOSE WILKER DE SIQUEIRA", "consultant": "MARIA EDUARDA LOPES FREITAS", "type": "new", "commission": 50, "date": "14/04/2026", "contract": "HIDROGINASTICA PM 6 meses - DCC3", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras"}, {"id": "20111", "student": "JOÃO FELIPE BONFIN VALENTIM", "consultant": "ADRIELLY SANTANA SABINO", "type": "new", "commission": 50, "date": "17/04/2026", "contract": "BEBE III PM 12 meses - DCC1", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras"}, {"id": "20139", "student": "JOÃO PEDRO FERRAÇO SANTOS", "consultant": "ADRIELLY SANTANA SABINO", "type": "new", "commission": 50, "date": "28/04/2026", "contract": "ADAPTAÇÃO - 2 RELAMPAGO", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras"}, {"id": "20125", "student": "JIAJIÉ WU", "consultant": "LIVIA OLIVEIRA RODRIGUES DOS SANTOS", "type": "new", "commission": 50, "date": "13/01/2026", "contract": "BEBE III PM 12 meses - DCC2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras"}, {"id": "20133", "student": "JIAJIÉ WU", "consultant": "LIVIA OLIVEIRA RODRIGUES DOS SANTOS", "type": "new", "commission": 50, "date": "13/01/2026", "contract": "BEBE III PM 12 meses - DCC2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras"}, {"id": "20123", "student": "FELIPE GAUDIO PONTINI", "consultant": "KAIQUE PEREIRA SIQUEIRA", "type": "new", "commission": 50, "date": "27/04/2026", "contract": "BEBE II PM 6 meses- DCC2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras"}, {"id": "20047", "student": "EDUARDA MAGESKI VASCONCELOS", "consultant": "FRANCIELY IGNACIO ELIZIARIO", "type": "new", "commission": 50, "date": "25/03/2026", "contract": "BEBE III PM 6 meses - DCC2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras"}, {"id": "20101", "student": "CILDA PROCHNOW", "consultant": "ADRIELLY SANTANA SABINO", "type": "new", "commission": 50, "date": "17/04/2026", "contract": "HIDROGINASTICA PM 12 meses - DCC2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras"}, {"id": "20074", "student": "BELA RIBEIRO DE ARAUJO", "consultant": "ADRIELLY SANTANA SABINO", "type": "new", "commission": 50, "date": "01/04/2026", "contract": "ADAPTAÇÃO PM 12 meses - DCC2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras"}, {"id": "20138", "student": "ANTONELLA ORLANDE VIEIRA TRINDADE", "consultant": "KAIQUE PEREIRA SIQUEIRA", "type": "new", "commission": 50, "date": "24/04/2026", "contract": "BEBE II PM 6 meses- DCC2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras"}, {"id": "20077", "student": "ALICE MOSCHEN RAÑA", "consultant": "TAMIRIS DOS SANTOS OLIVEIRA", "type": "new", "commission": 50, "date": "30/08/2023", "contract": "BEBE III PM 12 meses - DCC2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras"}, {"id": "20094", "student": "WEIJIN WU", "consultant": "ISABELLY SANTOS MIGUITA", "type": "new", "commission": 50, "date": "15/04/2026", "contract": "Evolução Positiva - DCC", "unit": "club", "unit_label": "Positiva Club"}, {"id": "20067", "student": "WANDERSON MORETI", "consultant": "ISABELLY SANTOS MIGUITA", "type": "new", "commission": 50, "date": "06/04/2026", "contract": "Evolução Positiva - DCC", "unit": "club", "unit_label": "Positiva Club"}, {"id": "20118", "student": "TALINI ALVES PRATES MENDES", "consultant": "LUANA APARECIDA FERNANDES", "type": "new", "commission": 50, "date": "26/04/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club"}, {"id": "20065", "student": "REUTON CARLOS PINTO", "consultant": "LUANA APARECIDA FERNANDES", "type": "new", "commission": 50, "date": "07/04/2026", "contract": "Evolução Positiva - DCC", "unit": "club", "unit_label": "Positiva Club"}, {"id": "20117", "student": "PAULO DUARTE DE AQUINO FILHO", "consultant": "LUANA APARECIDA FERNANDES", "type": "new", "commission": 50, "date": "26/04/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club"}, {"id": "20052", "student": "PAULO MATHEUS", "consultant": "ISABELLY SANTOS MIGUITA", "type": "new", "commission": 50, "date": "04/04/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club"}, {"id": "20103", "student": "PALOMA SIQUEIRA", "consultant": "MARIA EDUARDA LOPES FREITAS", "type": "new", "commission": 50, "date": "20/04/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club"}, {"id": "20106", "student": "MARIANE DOS SANTOS", "consultant": "LUANA APARECIDA FERNANDES", "type": "new", "commission": 50, "date": "17/04/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club"}, {"id": "20112", "student": "LUISA MARANHAO", "consultant": "MARIA EDUARDA LOPES FREITAS", "type": "new", "commission": 50, "date": "23/04/2026", "contract": "Positiva Kids", "unit": "club", "unit_label": "Positiva Club"}, {"id": "20087", "student": "LUCINETE DE FREITAS", "consultant": "LUANA APARECIDA FERNANDES", "type": "new", "commission": 50, "date": "04/03/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club"}, {"id": "20100", "student": "ILDOMAR PINTO JUNIOR", "consultant": "LUANA APARECIDA FERNANDES", "type": "new", "commission": 50, "date": "15/04/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club"}, {"id": "20134", "student": "ELIZANGELA STORCK FERNANDES", "consultant": "LUANA APARECIDA FERNANDES", "type": "new", "commission": 50, "date": "29/04/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club"}, {"id": "20099", "student": "CRISTIANE CALOTT SILVA", "consultant": "ISABELLY SANTOS MIGUITA", "type": "new", "commission": 50, "date": "14/04/2026", "contract": "Evolução Positiva - DCC", "unit": "club", "unit_label": "Positiva Club"}, {"id": "20114", "student": "CLARICE GONÇALVES CUSTÓDIO", "consultant": "LUANA APARECIDA FERNANDES", "type": "new", "commission": 50, "date": "24/04/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club"}, {"id": "20141", "student": "CÉLIA SILVEIRA ANDRADE", "consultant": "LUANA APARECIDA FERNANDES", "type": "new", "commission": 50, "date": "30/04/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club"}, {"id": "20108", "student": "CARLOS EDUARDO ESTEVES ALVES DE ARAUJO", "consultant": "LUANA APARECIDA FERNANDES", "type": "new", "commission": 50, "date": "22/04/2026", "contract": "Evolução Positiva - DCC", "unit": "club", "unit_label": "Positiva Club"}, {"id": "20060", "student": "ANDERSON DE OLIVEIRA SOARES", "consultant": "ISABELLY SANTOS MIGUITA", "type": "new", "commission": 50, "date": "07/04/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club"}, {"id": "20062", "student": "AMANDA DE JESUS DA CONCEIÇÃO", "consultant": "ADRIELLY SANTANA SABINO", "type": "new", "commission": 50, "date": "05/04/2026", "contract": "Evolução Positiva - DCC", "unit": "club", "unit_label": "Positiva Club"}, {"id": "16663", "student": "MARCUS ROMANO SALLES BERNARDES DE SOUZA", "consultant": "ADRIELLY SANTANA SABINO", "type": "renewal", "commission": 25, "date": "08/04/2026", "contract": "ADULTO CONDICIONAMENTO PM 12 meses - DCC2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras"}, {"id": "16651", "student": "TEODORO AVELAR FERREIRA", "consultant": "ADRIELLY SANTANA SABINO", "type": "renewal", "commission": 25, "date": "06/04/2026", "contract": "BEBE II PM 12 meses- DCC2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras"}, {"id": "18586", "student": "MARIA RITA CASTELUBER NASCIMENTO", "consultant": "ADRIELLY SANTANA SABINO", "type": "renewal", "commission": 25, "date": "10/04/2026", "contract": "BEBE III PM 6 meses - DCC2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras"}, {"id": "12751", "student": "LARAH BARTH NOVAES", "consultant": "ADRIELLY SANTANA SABINO", "type": "renewal", "commission": 25, "date": "15/04/2026", "contract": "INF. APERF. 1, 2 e 3 PM 12 meses-  DCC2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras"}, {"id": "15723", "student": "BENICIO BARTH NOVAES NOVAES", "consultant": "ADRIELLY SANTANA SABINO", "type": "renewal", "commission": 25, "date": "15/04/2026", "contract": "INICIAÇÃO INFANTIL PM 12 meses - DCC2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras"}, {"id": "19200", "student": "LEANDRO LOPES RODRIGUES", "consultant": "ISABELLY SANTOS MIGUITA", "type": "renewal", "commission": 25, "date": "29/04/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club"}, {"id": "11128", "student": "LUIZ HENRIQUE SOUZA GOMES", "consultant": "LUANA APARECIDA FERNANDES", "type": "renewal", "commission": 25, "date": "16/04/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club"}, {"id": "11719", "student": "BEATRIZ DALLY BRITO", "consultant": "DIEGO NETTO DE OLIVEIRA", "type": "renewal", "commission": 25, "date": "14/04/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club"}, {"id": "9954", "student": "NOEMY VEIGA", "consultant": "ISABELLY SANTOS MIGUITA", "type": "renewal", "commission": 25, "date": "16/04/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club"}, {"id": "17356", "student": "BEATRYS DA CRUZ RODRIGUES CASTRO", "consultant": "ISABELLY SANTOS MIGUITA", "type": "renewal", "commission": 25, "date": "08/04/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club"}, {"id": "6904", "student": "LUCAS SIQUEIRA DA ROCHA", "consultant": "KAIQUE PEREIRA SIQUEIRA", "type": "renewal", "commission": 25, "date": "10/04/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club"}, {"id": "7749", "student": "SIMONE RODRIGUES FERREIRA", "consultant": "LUANA APARECIDA FERNANDES", "type": "renewal", "commission": 25, "date": "22/04/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club"}, {"id": "8626", "student": "MARIANA MERLO", "consultant": "LUANA APARECIDA FERNANDES", "type": "renewal", "commission": 25, "date": "28/04/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club"}, {"id": "9201", "student": "ALEXANDRE BASTOS DE LIMA", "consultant": "JESSICA KETULLIN CASTRO RANGEL", "type": "renewal", "commission": 25, "date": "17/04/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club"}, {"id": "13781", "student": "ALBA VITORIA ERY SANTOS RODRIGUES", "consultant": "ISABELLY SANTOS MIGUITA", "type": "renewal", "commission": 25, "date": "07/04/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club"}, {"id": "13813", "student": "MARIANA DALLY", "consultant": "DIEGO NETTO DE OLIVEIRA", "type": "renewal", "commission": 25, "date": "07/04/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club"}, {"id": "17357", "student": "LUCAS DE CASTRO NEVES", "consultant": "ISABELLY SANTOS MIGUITA", "type": "renewal", "commission": 25, "date": "08/04/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club"}, {"id": "5136", "student": "Lilian da Silveira Andrade", "consultant": "LUANA APARECIDA FERNANDES", "type": "renewal", "commission": 25, "date": "30/04/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club"}, {"id": "13561", "student": "FANI DE JESUS GOMES", "consultant": "ISABELLY SANTOS MIGUITA", "type": "renewal", "commission": 25, "date": "01/04/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club"}, {"id": "4049", "student": "ZULEICA RODRIGUES", "consultant": "MARIA EDUARDA LOPES FREITAS", "type": "renewal", "commission": 25, "date": "29/04/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club"}, {"id": "16345", "student": "ISABELLA XAVIER PEREIRA FERNANDES", "consultant": "JESSICA KETULLIN CASTRO RANGEL", "type": "renewal", "commission": 25, "date": "22/04/2026", "contract": "Evolução Positiva - DCC", "unit": "club", "unit_label": "Positiva Club"}, {"id": "5850", "student": "ELIANE MIRANDA DOS REMEDIOS", "consultant": "JESSICA KETULLIN CASTRO RANGEL", "type": "renewal", "commission": 25, "date": "11/04/2026", "contract": "Evolução Positiva - Sem Fidelidade", "unit": "club", "unit_label": "Positiva Club"}, {"id": "19965", "student": "VICTOR ALMEIDA COSTA", "consultant": "ISABELLY SANTOS MIGUITA", "type": "renewal", "commission": 25, "date": "27/04/2026", "contract": "Evolução Positiva - UpSell", "unit": "club", "unit_label": "Positiva Club"}, {"id": "15807", "student": "RAQUEL LAMAS", "consultant": "ISABELLY SANTOS MIGUITA", "type": "renewal", "commission": 25, "date": "06/04/2026", "contract": "Evolução Wellhub", "unit": "club", "unit_label": "Positiva Club"}, {"id": "17915", "student": "JOAO PAULO DENADAI", "consultant": "LUANA APARECIDA FERNANDES", "type": "renewal", "commission": 25, "date": "01/04/2026", "contract": "Evolução Wellhub", "unit": "club", "unit_label": "Positiva Club"}, {"id": "3753", "student": "FABIANA RAQUEL SCHERRER DA SILVA", "consultant": "LUANA APARECIDA FERNANDES", "type": "renewal", "commission": 25, "date": "01/04/2026", "contract": "Evolução Wellhub", "unit": "club", "unit_label": "Positiva Club"}, {"id": "11352", "student": "JANAINA MARIA DOS SANTOS", "consultant": "ISABELLY SANTOS MIGUITA", "type": "renewal", "commission": 25, "date": "18/04/2026", "contract": "Evolução Wellhub", "unit": "club", "unit_label": "Positiva Club"}, {"id": "3656", "student": "MARCUS VINICIUS DA SILVA", "consultant": "Kimberlly Castro Rangel", "type": "renewal", "commission": 25, "date": "24/04/2026", "contract": "Ex-Alunos Mensal 99,90 - COMUM", "unit": "club", "unit_label": "Positiva Club"}, {"id": "16729", "student": "THIAGO BINDA THEOTONIO", "consultant": "Kimberlly Castro Rangel", "type": "renewal", "commission": 25, "date": "19/04/2026", "contract": "GYM PM 12 meses - DCC 129,90 (136,17)", "unit": "club", "unit_label": "Positiva Club"}, {"id": "1390", "student": "JAQUELINE VENANCIO DA SILVA", "consultant": "JESSICA KETULLIN CASTRO RANGEL", "type": "renewal", "commission": 25, "date": "24/04/2026", "contract": "GYM PM 12 meses - DCC 129,90 (136,17)", "unit": "club", "unit_label": "Positiva Club"}];
+const MONTH      = "Abril/2026";
+const UNIT_KEYS  = ["club", "laranjeiras"];
+const UNIT_LABELS= {"laranjeiras": "Positiva Acqua Laranjeiras", "club": "Positiva Club"};
+
+// ══════════════════════════════════════════════
+//  STORAGE HELPERS
+// ══════════════════════════════════════════════
+const USERS_KEY    = 'positiva_users';
+const SESSION_KEY  = 'positiva_session';
+const DISPUTES_KEY = 'positiva_disputes_' + MONTH.replace('/','_');
+
+function loadUsers() {
+  const saved = localStorage.getItem(USERS_KEY);
+  if (saved) return JSON.parse(saved);
+  // Gerar usuários padrão a partir dos consultores nos dados
+  const consultants = [...new Set(RAW_SALES.map(s => s.consultant))].filter(Boolean);
+  const users = { coordenador: { name:'Coordenador', role:'coordinator', pw:'positiva2026' } };
+  consultants.forEach(name => {
+    const login = name.split(' ')[0].toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+    users[login] = { name, role:'consultant', pw:'positiva123' };
+  });
+  saveUsers(users);
+  return users;
+}
+
+function saveUsers(u) { localStorage.setItem(USERS_KEY, JSON.stringify(u)); }
+
+function loadDisputes() {
+  const saved = localStorage.getItem(DISPUTES_KEY);
+  return saved ? JSON.parse(saved) : [];
+}
+function saveDisputes(d) { localStorage.setItem(DISPUTES_KEY, JSON.stringify(d)); }
+
+// ══════════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════════
+let session     = null;
+let users       = {};
+let disputes    = [];
+let activeUnit  = null;
+let activeSection = 'overview';
+let pendingDisputeSale = null;
+let pendingResolveIdx  = null;
+let pendingPwLogin     = null;
+let chartRanking = null;
+let chartCompare = null;
+let chartTimeline = null;
+
+// ══════════════════════════════════════════════
+//  AUTH
+// ══════════════════════════════════════════════
+function doLogin() {
+  users = loadUsers();
+  const login = document.getElementById('inp-user').value.trim().toLowerCase();
+  const pass  = document.getElementById('inp-pass').value;
+  const user  = users[login];
+  if (!user || user.pw !== pass) {
+    document.getElementById('login-error').style.display = 'block';
+    return;
+  }
+  session = { login, ...user };
+  localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  bootApp();
+}
+
+function doLogout() {
+  localStorage.removeItem(SESSION_KEY);
+  session = null;
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('inp-pass').value = '';
+}
+
+document.getElementById('inp-pass').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+
+// ══════════════════════════════════════════════
+//  BOOT APP
+// ══════════════════════════════════════════════
+function bootApp() {
+  users    = loadUsers();
+  disputes = loadDisputes();
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('hdr-month').textContent = MONTH;
+  document.getElementById('hdr-name').textContent  = session.name;
+  document.getElementById('hdr-role').textContent  = session.role === 'coordinator' ? 'Coordenador' : 'Consultor';
+  document.getElementById('hdr-avatar').textContent = session.name[0];
+
+  buildTabs();
+  buildSectionNav();
+  renderSection(activeSection);
+}
+
+// ══════════════════════════════════════════════
+//  TABS (unidades)
+// ══════════════════════════════════════════════
+function buildTabs() {
+  const bar = document.getElementById('tabs-bar');
+  bar.innerHTML = '';
+
+  const unitList = session.role === 'coordinator' ? UNIT_KEYS : null;
+
+  if (session.role === 'coordinator') {
+    UNIT_KEYS.forEach((uk, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'tab-btn' + (i===0?' active':'');
+      btn.textContent = UNIT_LABELS[uk] || uk;
+      btn.onclick = () => switchUnit(uk, btn);
+      bar.appendChild(btn);
+    });
+    activeUnit = UNIT_KEYS[0];
+  } else {
+    const btn = document.createElement('button');
+    btn.className = 'tab-btn active';
+    btn.textContent = 'Meu Dashboard';
+    bar.appendChild(btn);
+    activeUnit = null;
+  }
+}
+
+function switchUnit(uk, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  activeUnit = uk;
+  destroyCharts();
+  renderSection(activeSection);
+}
+
+// ══════════════════════════════════════════════
+//  SECTION NAV
+// ══════════════════════════════════════════════
+function buildSectionNav() {
+  const nav = document.getElementById('section-nav');
+  nav.innerHTML = '';
+
+  const sections = [
+    {id:'overview',  label:'Visão Geral'},
+    {id:'sales',     label:'Vendas'},
+    {id:'ranking',   label:'Ranking'},
+    {id:'disputes',  label:'Disputas'},
+  ];
+  if (session.role === 'coordinator') {
+    sections.push({id:'admin', label:'Gerenciar Usuários'});
+  }
+
+  sections.forEach(s => {
+    const btn = document.createElement('button');
+    btn.className = 'sec-btn' + (s.id === activeSection ? ' active' : '');
+    btn.textContent = s.label;
+    if (s.id === 'disputes') {
+      const open = disputes.filter(d => d.status === 'open').length;
+      if (open > 0) btn.textContent += ` ($<built-in function open>)`;
+    }
+    btn.onclick = () => switchSection(s.id);
+    nav.appendChild(btn);
+  });
+}
+
+function switchSection(id) {
+  activeSection = id;
+  document.querySelectorAll('.sec-btn').forEach(b => {
+    b.classList.toggle('active', b.textContent.startsWith(
+      id === 'disputes' ? 'Disputas' :
+      id === 'overview' ? 'Visão' :
+      id === 'sales'    ? 'Vendas' :
+      id === 'ranking'  ? 'Ranking' : 'Gerenciar'
+    ));
+  });
+  destroyCharts();
+  renderSection(id);
+}
+
+// ══════════════════════════════════════════════
+//  FILTER SALES
+// ══════════════════════════════════════════════
+function getFilteredSales() {
+  let sales = [...RAW_SALES];
+  // Apply dispute transfers
+  disputes.filter(d => d.status === 'resolved' && d.action === 'transfer').forEach(d => {
+    const s = sales.find(x => x.id === d.saleId && x.unit === d.unit);
+    if (s) s.consultant = d.claimant;
+  });
+  if (activeUnit) sales = sales.filter(s => s.unit === activeUnit);
+  return sales;
+}
+
+function salesForConsultant(name, sales) {
+  return sales.filter(s => s.consultant === name);
+}
+
+function getConsultants(sales) {
+  return [...new Set(sales.map(s => s.consultant))].filter(Boolean).sort();
+}
+
+function calcCommission(sales) {
+  return sales.reduce((a, s) => a + s.commission, 0);
+}
+
+// ══════════════════════════════════════════════
+//  RENDER SECTION
+// ══════════════════════════════════════════════
+function renderSection(id) {
+  ['overview','sales','ranking','disputes','admin'].forEach(p => {
+    document.getElementById('panel-'+p).classList.toggle('active', p===id);
+  });
+
+  const sales = getFilteredSales();
+  if (id === 'overview')  renderOverview(sales);
+  if (id === 'sales')     renderSales(sales);
+  if (id === 'ranking')   renderRanking(sales);
+  if (id === 'disputes')  renderDisputes(sales);
+  if (id === 'admin')     renderAdmin();
+}
+
+// ══════════════════════════════════════════════
+//  OVERVIEW
+// ══════════════════════════════════════════════
+function renderOverview(sales) {
+  const el = document.getElementById('panel-overview');
+  const consultants = getConsultants(sales);
+  const totalNew     = sales.filter(s=>s.type==='new').length;
+  const totalRen     = sales.filter(s=>s.type==='renewal').length;
+  const totalComm    = calcCommission(sales);
+  const openDisputes = disputes.filter(d=>d.status==='open' && (!activeUnit||d.unit===activeUnit)).length;
+
+  let myBar = '';
+  if (session.role === 'consultant') {
+    const my = sales.filter(s=>s.consultant===session.name);
+    const myNew = my.filter(s=>s.type==='new').length;
+    const myRen = my.filter(s=>s.type==='renewal').length;
+    const myComm = calcCommission(my);
+    myBar = `<div class="my-highlight-bar">
+      <div class="mh-name">${session.name}</div>
+      <div class="divider"></div>
+      <div class="mh-item"><div class="mh-val">${myNew}</div><div class="mh-lbl">Novos</div></div>
+      <div class="divider"></div>
+      <div class="mh-item"><div class="mh-val">${myRen}</div><div class="mh-lbl">Rematrículas</div></div>
+      <div class="divider"></div>
+      <div class="mh-item"><div class="mh-val">R$&nbsp;${myComm}</div><div class="mh-lbl">Comissão</div></div>
+    </div>`;
+  }
+
+  const unitTitle = activeUnit ? UNIT_LABELS[activeUnit] : 'Todas as Unidades';
+
+  el.innerHTML = `
+    ${myBar}
+    <p class="page-title">${unitTitle}</p>
+    <p class="page-sub">${MONTH} · ${sales.length} vendas no total</p>
+    <div class="kpi-grid">
+      <div class="kpi-card highlight">
+        <div class="kpi-label">Total Comissões</div>
+        <div class="kpi-value">R$ ${totalComm}</div>
+        <div class="kpi-sub">${sales.length} vendas</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Alunos Novos</div>
+        <div class="kpi-value">${totalNew}</div>
+        <div class="kpi-sub">R$ 50 cada</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Rematrículas</div>
+        <div class="kpi-value">${totalRen}</div>
+        <div class="kpi-sub">R$ 25 cada</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Consultores Ativos</div>
+        <div class="kpi-value">${consultants.length}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Disputas Abertas</div>
+        <div class="kpi-value">${openDisputes}</div>
+        <div class="kpi-sub" style="color:var(--warning)">${openDisputes>0?'Requer atenção':'Tudo ok'}</div>
+      </div>
+    </div>
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h3>Ranking de Comissão</h3>
+        <canvas id="chart-ranking"></canvas>
+      </div>
+      <div class="chart-card">
+        <h3>Novos vs Rematrícula</h3>
+        <canvas id="chart-compare"></canvas>
+      </div>
+    </div>
+  `;
+
+  // Ranking chart
+  const ranked = consultants.map(c => ({
+    name: c.split(' ')[0],
+    comm: calcCommission(salesForConsultant(c, sales)),
+    new:  salesForConsultant(c, sales).filter(s=>s.type==='new').length,
+    ren:  salesForConsultant(c, sales).filter(s=>s.type==='renewal').length,
+  })).sort((a,b)=>b.comm-a.comm);
+
+  const ctx1 = document.getElementById('chart-ranking').getContext('2d');
+  chartRanking = new Chart(ctx1, {
+    type:'bar',
+    data:{
+      labels: ranked.map(r=>r.name),
+      datasets:[{
+        label:'Comissão (R$)',
+        data: ranked.map(r=>r.comm),
+        backgroundColor:'#BEF575',
+        borderRadius:6,
+      }]
+    },
+    options:{
+      responsive:true,indexAxis:'y',
+      plugins:{legend:{display:false}},
+      scales:{x:{beginAtZero:true}}
+    }
+  });
+
+  const ctx2 = document.getElementById('chart-compare').getContext('2d');
+  chartCompare = new Chart(ctx2, {
+    type:'bar',
+    data:{
+      labels: ranked.map(r=>r.name),
+      datasets:[
+        {label:'Novos',data:ranked.map(r=>r.new),backgroundColor:'#34425C',borderRadius:4},
+        {label:'Rematrícula',data:ranked.map(r=>r.ren),backgroundColor:'#BEF575',borderRadius:4},
+      ]
+    },
+    options:{
+      responsive:true,
+      plugins:{legend:{position:'bottom'}},
+      scales:{x:{stacked:false},y:{beginAtZero:true}}
+    }
+  });
+}
+
+// ══════════════════════════════════════════════
+//  SALES TABLE
+// ══════════════════════════════════════════════
+function renderSales(sales, filter='') {
+  const el = document.getElementById('panel-sales');
+  const unitTitle = activeUnit ? UNIT_LABELS[activeUnit] : 'Todas as Unidades';
+
+  el.innerHTML = `
+    <p class="page-title">Vendas — ${unitTitle}</p>
+    <p class="page-sub">${MONTH}</p>
+    <div class="table-card">
+      <div class="table-header">
+        <h3>Lista de Vendas (${sales.length})</h3>
+        <div class="flex-row">
+          <select id="type-filter" onchange="applyFilters()">
+            <option value="">Todos os tipos</option>
+            <option value="new">Novos</option>
+            <option value="renewal">Rematrículas</option>
+          </select>
+          <select id="consultant-filter" onchange="applyFilters()">
+            <option value="">Todos os consultores</option>
+            ${getConsultants(sales).map(c=>`<option value="${c}">${c.split(' ')[0]}</option>`).join('')}
+          </select>
+          <input class="search-box" id="search-sales" placeholder="Buscar aluno, ID..." oninput="applyFilters()">
+        </div>
+      </div>
+      <div id="sales-table-body"></div>
+    </div>
+  `;
+  renderSalesTable(sales);
+}
+
+function applyFilters() {
+  const search = document.getElementById('search-sales').value.toLowerCase();
+  const type   = document.getElementById('type-filter').value;
+  const cons   = document.getElementById('consultant-filter').value;
+  let sales = getFilteredSales();
+  if (type)   sales = sales.filter(s=>s.type===type);
+  if (cons)   sales = sales.filter(s=>s.consultant===cons);
+  if (search) sales = sales.filter(s=>
+    s.student.toLowerCase().includes(search) ||
+    s.id.toLowerCase().includes(search) ||
+    s.consultant.toLowerCase().includes(search)
+  );
+  renderSalesTable(sales);
+}
+
+function renderSalesTable(sales) {
+  const body = document.getElementById('sales-table-body');
+  if (!body) return;
+  if (!sales.length) {
+    body.innerHTML = '<div class="empty-state"><div class="icon">🔍</div><p>Nenhuma venda encontrada.</p></div>';
+    return;
+  }
+
+  const isCoord = session.role === 'coordinator';
+
+  body.innerHTML = `<table class="data-table">
+    <thead><tr>
+      <th>ID</th><th>Aluno</th><th>Consultor</th><th>Tipo</th>
+      <th>Comissão</th><th>Data</th><th>Contrato</th>
+      ${!isCoord ? '<th>Ação</th>' : ''}
+    </tr></thead>
+    <tbody>
+    ${sales.map(s => {
+      const dispute = disputes.find(d=>d.saleId===s.id && d.unit===s.unit && d.status==='open');
+      const resolved= disputes.find(d=>d.saleId===s.id && d.unit===s.unit && d.status==='resolved');
+      const isDisp  = !!dispute;
+      const isRes   = !!resolved;
+      const isMe    = s.consultant === session.name;
+      let statusTag = '';
+      if (isDisp) statusTag = '<span class="tag tag-disputed">Em Disputa</span>';
+      else if (isRes) statusTag = '<span class="tag tag-resolved">Resolvida</span>';
+
+      let actionCell = '';
+      if (!isCoord) {
+        if (!isMe && !isDisp && !isRes) {
+          actionCell = `<td><button class="btn-dispute" onclick="openDisputeModal('${s.id}','${s.unit}')">Contestar</button></td>`;
+        } else if (isDisp && dispute.claimant === session.name) {
+          actionCell = `<td><span style="font-size:12px;color:var(--warning);font-weight:700">Aguardando</span></td>`;
+        } else {
+          actionCell = `<td></td>`;
+        }
+      }
+
+      return `<tr class="${isMe?'mine':''}">
+        <td><strong>#${s.id}</strong></td>
+        <td>${s.student}</td>
+        <td>${s.consultant.split(' ').slice(0,2).join(' ')} ${isMe?'<span class="tag" style="background:#e8f5e9;color:#2e7d32;font-size:10px">Você</span>':''}</td>
+        <td><span class="tag ${s.type==='new'?'tag-new':'tag-renewal'}">${s.type==='new'?'Novo':'Rematrícula'}</span></td>
+        <td><strong>R$ ${s.commission}</strong></td>
+        <td>${s.date}</td>
+        <td style="max-width:200px;font-size:12px;color:var(--mid)">${s.contract.slice(0,40)}${s.contract.length>40?'…':''}</td>
+        ${actionCell}
+      </tr>`;
+    }).join('')}
+    </tbody>
+  </table>`;
+}
+
+// ══════════════════════════════════════════════
+//  RANKING
+// ══════════════════════════════════════════════
+function renderRanking(sales) {
+  const el = document.getElementById('panel-ranking');
+  const unitTitle = activeUnit ? UNIT_LABELS[activeUnit] : 'Todas as Unidades';
+  const consultants = getConsultants(sales);
+
+  const ranked = consultants.map(c => {
+    const cs = salesForConsultant(c, sales);
+    return {
+      name: c,
+      comm: calcCommission(cs),
+      new:  cs.filter(s=>s.type==='new').length,
+      ren:  cs.filter(s=>s.type==='renewal').length,
+      total: cs.length,
+    };
+  }).sort((a,b)=>b.comm-a.comm);
+
+  const maxComm = ranked[0]?.comm || 1;
+
+  el.innerHTML = `
+    <p class="page-title">Ranking — ${unitTitle}</p>
+    <p class="page-sub">${MONTH}</p>
+    <div class="table-card">
+      <h3>Consultores por Comissão</h3>
+      <div style="margin-top:16px">
+        ${ranked.map((r,i) => `
+          <div class="ranking-row">
+            <div class="rank-pos ${i<3?'top':''}">${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</div>
+            <div style="flex:1">
+              <div class="rank-name">${r.name.split(' ').slice(0,2).join(' ')}
+                ${r.name===session.name?'<span class="tag" style="background:#e8f5e9;color:#2e7d32;font-size:10px">Você</span>':''}
+              </div>
+              <div class="rank-detail">${r.new} novo${r.new!==1?'s':''} · ${r.ren} rematrícula${r.ren!==1?'s':''}</div>
+            </div>
+            <div class="rank-bar-wrap">
+              <div class="rank-bar" style="width:${Math.round(r.comm/maxComm*100)}%"></div>
+            </div>
+            <div class="rank-val">R$ ${r.comm}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+// ══════════════════════════════════════════════
+//  DISPUTES
+// ══════════════════════════════════════════════
+function renderDisputes(sales) {
+  const el = document.getElementById('panel-disputes');
+  const isCoord = session.role === 'coordinator';
+  const relevantDisputes = disputes.filter(d => !activeUnit || d.unit === activeUnit);
+
+  const open     = relevantDisputes.filter(d=>d.status==='open');
+  const resolved = relevantDisputes.filter(d=>d.status==='resolved');
+
+  let html = `
+    <p class="page-title">Disputas</p>
+    <p class="page-sub">${MONTH} · ${open.length} aberta${open.length!==1?'s':''} · ${resolved.length} resolvida${resolved.length!==1?'s':''}</p>
+  `;
+
+  if (isCoord && open.length > 0) {
+    html += `<div class="coordinator-notice">Você tem ${open.length} disputa${open.length!==1?'s':''} aguardando decisão.</div>`;
+  }
+
+  if (!relevantDisputes.length) {
+    html += `<div class="empty-state"><div class="icon">✅</div><p>Nenhuma disputa registrada.</p></div>`;
+    el.innerHTML = html;
+    return;
+  }
+
+  if (open.length) {
+    html += `<h3 style="font-size:15px;font-weight:800;margin-bottom:12px;color:var(--warning)">Em Aberto (${open.length})</h3>`;
+    open.forEach((d,i) => {
+      const sale = sales.find(s=>s.id===d.saleId&&s.unit===d.unit);
+      html += `<div class="dispute-card">
+        <div class="dispute-meta">
+          <span class="tag tag-disputed">Em Disputa</span>
+          <strong>#${d.saleId}</strong>
+          <span style="color:var(--mid);font-size:13px">${d.unit_label}</span>
+        </div>
+        <p style="font-size:14px"><strong>Venda atual:</strong> ${d.originalConsultant.split(' ').slice(0,2).join(' ')}</p>
+        <p style="font-size:14px"><strong>Contestado por:</strong> ${d.claimant.split(' ').slice(0,2).join(' ')}</p>
+        <p class="dispute-reason"><strong>Motivo:</strong> ${d.reason}</p>
+        <p style="font-size:12px;color:var(--mid)">Enviado em ${d.createdAt}</p>
+        ${isCoord ? `<div class="dispute-actions">
+          <button class="btn-sm btn-transfer" onclick="openResolveModal(${disputes.indexOf(d)})">Analisar e Decidir</button>
+        </div>` : ''}
+      </div>`;
+    });
+  }
+
+  if (resolved.length) {
+    html += `<h3 style="font-size:15px;font-weight:800;margin:20px 0 12px;color:var(--success)">Resolvidas (${resolved.length})</h3>`;
+    resolved.forEach(d => {
+      html += `<div class="dispute-card resolved">
+        <div class="dispute-meta">
+          <span class="tag" style="background:#e8f5e9;color:#2e7d32">Resolvida</span>
+          <strong>#${d.saleId}</strong>
+          <span style="color:var(--mid);font-size:13px">${d.unit_label}</span>
+        </div>
+        <p style="font-size:14px"><strong>Decisão:</strong> ${d.action==='transfer'?`Transferida para ${d.claimant.split(' ')[0]}`:'Mantida com '+d.originalConsultant.split(' ')[0]}</p>
+        <p class="dispute-reason"><strong>Motivo da contestação:</strong> ${d.reason}</p>
+        <div class="dispute-decision"><strong>Decisão do coordenador:</strong> ${d.resolution}<br><span style="font-size:11px">por ${d.resolvedBy} em ${d.resolvedAt}</span></div>
+      </div>`;
+    });
+  }
+
+  el.innerHTML = html;
+}
+
+// ══════════════════════════════════════════════
+//  ADMIN
+// ══════════════════════════════════════════════
+function renderAdmin() {
+  const el = document.getElementById('panel-admin');
+  const userList = Object.entries(users).filter(([k])=>k!=='coordenador');
+
+  el.innerHTML = `
+    <p class="page-title">Gerenciar Usuários</p>
+    <p class="page-sub">Adicione, remova ou altere senhas dos consultores</p>
+
+    <div class="admin-section">
+      <h3>Consultores Cadastrados (${userList.length})</h3>
+      <div class="user-list" id="user-list">
+        ${userList.map(([login, u]) => `
+          <div class="user-row">
+            <div class="user-avatar">${u.name[0]}</div>
+            <div class="user-info">
+              <div class="un">${u.name.split(' ').slice(0,2).join(' ')}</div>
+              <div class="up">Login: <strong>${login}</strong> · Senha: <strong>${u.pw}</strong></div>
+            </div>
+            <button class="btn-edit-pw" onclick="openPwModal('${login}')">Alterar Senha</button>
+            <button class="btn-del" onclick="deleteUser('${login}')">Remover</button>
+          </div>
+        `).join('')}
+      </div>
+
+      <div class="add-user-form" style="margin-top:20px">
+        <input id="new-user-name"  placeholder="Nome completo do consultor">
+        <input id="new-user-login" placeholder="Login (ex: maria)">
+        <input id="new-user-pw"    placeholder="Senha inicial">
+        <button class="btn-add" onclick="addUser()">+ Adicionar</button>
+      </div>
+    </div>
+  `;
+}
+
+function addUser() {
+  const name  = document.getElementById('new-user-name').value.trim().toUpperCase();
+  const login = document.getElementById('new-user-login').value.trim().toLowerCase();
+  const pw    = document.getElementById('new-user-pw').value.trim();
+  if (!name||!login||!pw) { alert('Preencha todos os campos.'); return; }
+  if (users[login]) { alert('Login já existe.'); return; }
+  users[login] = {name, role:'consultant', pw};
+  saveUsers(users);
+  renderAdmin();
+}
+
+function deleteUser(login) {
+  if (!confirm('Remover acesso de '+users[login].name+'?')) return;
+  delete users[login];
+  saveUsers(users);
+  renderAdmin();
+}
+
+function openPwModal(login) {
+  pendingPwLogin = login;
+  document.getElementById('new-pw').value = '';
+  openModal('modal-pw');
+}
+
+function saveNewPw() {
+  const pw = document.getElementById('new-pw').value.trim();
+  if (!pw) return;
+  users[pendingPwLogin].pw = pw;
+  saveUsers(users);
+  closeModal('modal-pw');
+  renderAdmin();
+}
+
+// ══════════════════════════════════════════════
+//  DISPUTE MODAL
+// ══════════════════════════════════════════════
+function openDisputeModal(saleId, unit) {
+  const sales = getFilteredSales();
+  const sale = sales.find(s=>s.id===saleId&&s.unit===unit);
+  if (!sale) return;
+  pendingDisputeSale = {saleId, unit};
+  document.getElementById('dispute-sale-info').innerHTML = `
+    <strong>Aluno:</strong> ${sale.student} (#${sale.id})<br>
+    <strong>Cadastrado por:</strong> ${sale.consultant}<br>
+    <strong>Data:</strong> ${sale.date}<br>
+    <strong>Contrato:</strong> ${sale.contract}
+  `;
+  document.getElementById('dispute-reason').value = '';
+  openModal('modal-dispute');
+}
+
+function submitDispute() {
+  const reason = document.getElementById('dispute-reason').value.trim();
+  if (!reason) { alert('Informe o motivo da contestação.'); return; }
+  const sales = getFilteredSales();
+  const sale  = sales.find(s=>s.id===pendingDisputeSale.saleId&&s.unit===pendingDisputeSale.unit);
+  if (!sale) return;
+
+  disputes.push({
+    saleId: pendingDisputeSale.saleId,
+    unit:   pendingDisputeSale.unit,
+    unit_label: UNIT_LABELS[pendingDisputeSale.unit] || pendingDisputeSale.unit,
+    originalConsultant: sale.consultant,
+    claimant: session.name,
+    reason,
+    status: 'open',
+    createdAt: new Date().toLocaleDateString('pt-BR'),
+    resolution: null,
+    resolvedBy: null,
+    resolvedAt: null,
+    action: null,
+  });
+  saveDisputes(disputes);
+  closeModal('modal-dispute');
+  buildSectionNav();
+  renderSection('disputes');
+}
+
+// ══════════════════════════════════════════════
+//  RESOLVE MODAL
+// ══════════════════════════════════════════════
+function openResolveModal(idx) {
+  pendingResolveIdx = idx;
+  const d = disputes[idx];
+  document.getElementById('resolve-info').innerHTML = `
+    <strong>Venda #${d.saleId}</strong> — ${d.unit_label}<br>
+    <strong>Cadastrado por:</strong> ${d.originalConsultant}<br>
+    <strong>Contestado por:</strong> ${d.claimant}<br>
+    <strong>Motivo:</strong> ${d.reason}
+  `;
+  document.getElementById('resolve-reason').value = '';
+  openModal('modal-resolve');
+}
+
+function resolveDispute(action) {
+  const res = document.getElementById('resolve-reason').value.trim();
+  if (!res) { alert('Informe a justificativa da decisão.'); return; }
+  const d = disputes[pendingResolveIdx];
+  d.status     = 'resolved';
+  d.action     = action;
+  d.resolution = res;
+  d.resolvedBy = session.name;
+  d.resolvedAt = new Date().toLocaleDateString('pt-BR');
+  saveDisputes(disputes);
+  closeModal('modal-resolve');
+  buildSectionNav();
+  renderSection('disputes');
+}
+
+// ══════════════════════════════════════════════
+//  MODAL HELPERS
+// ══════════════════════════════════════════════
+function openModal(id)  { document.getElementById(id).classList.add('open') }
+function closeModal(id) { document.getElementById(id).classList.remove('open') }
+document.querySelectorAll('.modal-overlay').forEach(m =>
+  m.addEventListener('click', e => { if(e.target===m) m.classList.remove('open'); })
+);
+
+// ══════════════════════════════════════════════
+//  CHART CLEANUP
+// ══════════════════════════════════════════════
+function destroyCharts() {
+  if (chartRanking)  { chartRanking.destroy();  chartRanking=null; }
+  if (chartCompare)  { chartCompare.destroy();  chartCompare=null; }
+  if (chartTimeline) { chartTimeline.destroy(); chartTimeline=null; }
+}
+
+// ══════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════
+(function init() {
+  const saved = localStorage.getItem(SESSION_KEY);
+  if (saved) {
+    session = JSON.parse(saved);
+    bootApp();
+  }
+})();
+</script>
+</body>
+</html>
