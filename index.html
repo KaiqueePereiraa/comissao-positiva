@@ -643,35 +643,97 @@ function renderSection(id) {
 // ══════════════════════════════════════════════
 //  OVERVIEW
 // ══════════════════════════════════════════════
-function renderOverview(sales) {
+function renderOverview(allSales) {
   const el = document.getElementById('panel-overview');
+  const isCoord = session.role === 'coordinator';
+
+  // Consultor: mostra apenas seus próprios dados
+  if (!isCoord) {
+    const my = allSales.filter(s=>s.consultant===session.name);
+    const myNew  = my.filter(s=>s.type==='new').length;
+    const myRen  = my.filter(s=>s.type==='renewal').length;
+    const myComm = calcCommission(my);
+    const myDisp = disputes.filter(d=>d.claimant===session.name&&d.status==='open').length;
+    const myUnits = [...new Set(my.map(s=>s.unit_label))].join(', ') || '—';
+
+    // Gráfico: meus novos vs rematrícula por unidade
+    const myUnitKeys = [...new Set(my.map(s=>s.unit))];
+    const chartData = myUnitKeys.map(u => ({
+      label: UNIT_LABELS[u] || u,
+      new:   my.filter(s=>s.unit===u&&s.type==='new').length,
+      ren:   my.filter(s=>s.unit===u&&s.type==='renewal').length,
+    }));
+
+    el.innerHTML = `
+      <div class="my-highlight-bar">
+        <div class="mh-name">${session.name}</div>
+        <div class="divider"></div>
+        <div class="mh-item"><div class="mh-val">${myNew}</div><div class="mh-lbl">Novos</div></div>
+        <div class="divider"></div>
+        <div class="mh-item"><div class="mh-val">${myRen}</div><div class="mh-lbl">Rematrículas</div></div>
+        <div class="divider"></div>
+        <div class="mh-item"><div class="mh-val">R$&nbsp;${myComm}</div><div class="mh-lbl">Minha Comissão</div></div>
+      </div>
+      <p class="page-title">Meu Desempenho</p>
+      <p class="page-sub">${MONTH} · Unidade(s): ${myUnits}</p>
+      <div class="kpi-grid">
+        <div class="kpi-card highlight">
+          <div class="kpi-label">Minha Comissão</div>
+          <div class="kpi-value">R$ ${myComm}</div>
+          <div class="kpi-sub">${my.length} vendas</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Alunos Novos</div>
+          <div class="kpi-value">${myNew}</div>
+          <div class="kpi-sub">R$ ${myNew*50}</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Rematrículas</div>
+          <div class="kpi-value">${myRen}</div>
+          <div class="kpi-sub">R$ ${myRen*25}</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Minhas Disputas</div>
+          <div class="kpi-value">${myDisp}</div>
+          <div class="kpi-sub" style="color:var(--warning)">${myDisp>0?'Aguardando decisão':'Nenhuma pendente'}</div>
+        </div>
+      </div>
+      ${chartData.length > 0 ? `
+      <div class="charts-grid" style="grid-template-columns:1fr">
+        <div class="chart-card" style="max-width:500px">
+          <h3>Minhas vendas por unidade</h3>
+          <canvas id="chart-compare"></canvas>
+        </div>
+      </div>` : ''}
+    `;
+
+    if (chartData.length > 0) {
+      const ctx = document.getElementById('chart-compare').getContext('2d');
+      chartCompare = new Chart(ctx, {
+        type:'bar',
+        data:{
+          labels: chartData.map(d=>d.label.replace('Positiva ','').replace('Acqua ','')),
+          datasets:[
+            {label:'Novos',     data:chartData.map(d=>d.new), backgroundColor:'#34425C',borderRadius:4},
+            {label:'Rematrícula',data:chartData.map(d=>d.ren), backgroundColor:'#BEF575',borderRadius:4},
+          ]
+        },
+        options:{responsive:true,plugins:{legend:{position:'bottom'}},scales:{y:{beginAtZero:true}}}
+      });
+    }
+    return;
+  }
+
+  // Coordenador: visão geral da unidade selecionada
+  const sales = allSales;
   const consultants = getConsultants(sales);
   const totalNew     = sales.filter(s=>s.type==='new').length;
   const totalRen     = sales.filter(s=>s.type==='renewal').length;
   const totalComm    = calcCommission(sales);
   const openDisputes = disputes.filter(d=>d.status==='open' && (!activeUnit||d.unit===activeUnit)).length;
-
-  let myBar = '';
-  if (session.role === 'consultant') {
-    const my = sales.filter(s=>s.consultant===session.name);
-    const myNew = my.filter(s=>s.type==='new').length;
-    const myRen = my.filter(s=>s.type==='renewal').length;
-    const myComm = calcCommission(my);
-    myBar = `<div class="my-highlight-bar">
-      <div class="mh-name">${session.name}</div>
-      <div class="divider"></div>
-      <div class="mh-item"><div class="mh-val">${myNew}</div><div class="mh-lbl">Novos</div></div>
-      <div class="divider"></div>
-      <div class="mh-item"><div class="mh-val">${myRen}</div><div class="mh-lbl">Rematrículas</div></div>
-      <div class="divider"></div>
-      <div class="mh-item"><div class="mh-val">R$&nbsp;${myComm}</div><div class="mh-lbl">Comissão</div></div>
-    </div>`;
-  }
-
-  const unitTitle = activeUnit ? UNIT_LABELS[activeUnit] : 'Todas as Unidades';
+  const unitTitle    = activeUnit ? UNIT_LABELS[activeUnit] : 'Todas as Unidades';
 
   el.innerHTML = `
-    ${myBar}
     <p class="page-title">${unitTitle}</p>
     <p class="page-sub">${MONTH} · ${sales.length} vendas no total</p>
     <div class="kpi-grid">
@@ -712,7 +774,6 @@ function renderOverview(sales) {
     </div>
   `;
 
-  // Ranking chart
   const ranked = consultants.map(c => ({
     name: c.split(' ')[0],
     comm: calcCommission(salesForConsultant(c, sales)),
@@ -725,18 +786,9 @@ function renderOverview(sales) {
     type:'bar',
     data:{
       labels: ranked.map(r=>r.name),
-      datasets:[{
-        label:'Comissão (R$)',
-        data: ranked.map(r=>r.comm),
-        backgroundColor:'#BEF575',
-        borderRadius:6,
-      }]
+      datasets:[{label:'Comissão (R$)',data:ranked.map(r=>r.comm),backgroundColor:'#BEF575',borderRadius:6}]
     },
-    options:{
-      responsive:true,indexAxis:'y',
-      plugins:{legend:{display:false}},
-      scales:{x:{beginAtZero:true}}
-    }
+    options:{responsive:true,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{beginAtZero:true}}}
   });
 
   const ctx2 = document.getElementById('chart-compare').getContext('2d');
@@ -745,41 +797,50 @@ function renderOverview(sales) {
     data:{
       labels: ranked.map(r=>r.name),
       datasets:[
-        {label:'Novos',data:ranked.map(r=>r.new),backgroundColor:'#34425C',borderRadius:4},
+        {label:'Novos',      data:ranked.map(r=>r.new),backgroundColor:'#34425C',borderRadius:4},
         {label:'Rematrícula',data:ranked.map(r=>r.ren),backgroundColor:'#BEF575',borderRadius:4},
       ]
     },
-    options:{
-      responsive:true,
-      plugins:{legend:{position:'bottom'}},
-      scales:{x:{stacked:false},y:{beginAtZero:true}}
-    }
+    options:{responsive:true,plugins:{legend:{position:'bottom'}},scales:{x:{stacked:false},y:{beginAtZero:true}}}
   });
 }
 
 // ══════════════════════════════════════════════
 //  SALES TABLE
 // ══════════════════════════════════════════════
-function renderSales(sales, filter='') {
+function renderSales(sales) {
   const el = document.getElementById('panel-sales');
+  const isCoord = session.role === 'coordinator';
   const unitTitle = activeUnit ? UNIT_LABELS[activeUnit] : 'Todas as Unidades';
 
+  // Para consultor: montar opções de unidades onde ele tem vendas
+  const allSales = getFilteredSales();
+  const consultorUnits = isCoord ? [] :
+    [...new Set(allSales.filter(s=>s.consultant===session.name).map(s=>s.unit))];
+
+  const unitFilterHtml = !isCoord ? `
+    <select id="unit-filter" onchange="applyFilters()">
+      <option value="">Todas as unidades</option>
+      ${UNIT_KEYS.map(u=>`<option value="${u}">${(UNIT_LABELS[u]||u).replace('Positiva ','').replace('Acqua ','')}</option>`).join('')}
+    </select>` : '';
+
   el.innerHTML = `
-    <p class="page-title">Vendas — ${unitTitle}</p>
+    <p class="page-title">Vendas — ${isCoord ? unitTitle : 'Todas as Unidades'}</p>
     <p class="page-sub">${MONTH}</p>
     <div class="table-card">
       <div class="table-header">
         <h3>Lista de Vendas (${sales.length})</h3>
         <div class="flex-row">
+          ${unitFilterHtml}
           <select id="type-filter" onchange="applyFilters()">
             <option value="">Todos os tipos</option>
             <option value="new">Novos</option>
             <option value="renewal">Rematrículas</option>
           </select>
-          <select id="consultant-filter" onchange="applyFilters()">
+          ${isCoord ? `<select id="consultant-filter" onchange="applyFilters()">
             <option value="">Todos os consultores</option>
-            ${getConsultants(sales).map(c=>`<option value="${c}">${c.split(' ')[0]}</option>`).join('')}
-          </select>
+            ${getConsultants(allSales).map(c=>`<option value="${c}">${c.split(' ')[0]}</option>`).join('')}
+          </select>` : ''}
           <input class="search-box" id="search-sales" placeholder="Buscar aluno, ID..." oninput="applyFilters()">
         </div>
       </div>
@@ -790,12 +851,14 @@ function renderSales(sales, filter='') {
 }
 
 function applyFilters() {
-  const search = document.getElementById('search-sales').value.toLowerCase();
-  const type   = document.getElementById('type-filter').value;
-  const cons   = document.getElementById('consultant-filter').value;
+  const search = (document.getElementById('search-sales')?.value || '').toLowerCase();
+  const type   = document.getElementById('type-filter')?.value || '';
+  const cons   = document.getElementById('consultant-filter')?.value || '';
+  const unit   = document.getElementById('unit-filter')?.value || '';
   let sales = getFilteredSales();
   if (type)   sales = sales.filter(s=>s.type===type);
   if (cons)   sales = sales.filter(s=>s.consultant===cons);
+  if (unit)   sales = sales.filter(s=>s.unit===unit);
   if (search) sales = sales.filter(s=>
     s.student.toLowerCase().includes(search) ||
     s.id.toLowerCase().includes(search) ||
