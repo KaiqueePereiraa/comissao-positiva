@@ -465,6 +465,50 @@ select:focus{border-color:var(--navy)}
   </div>
 </div>
 
+<!-- MODAL ADICIONAR VENDA (COORD) -->
+<div class="modal-overlay" id="modal-add-sale">
+  <div class="modal" style="max-width:580px">
+    <h3>Adicionar Venda Manualmente</h3>
+    <p style="font-size:13px;color:var(--mid);margin-bottom:20px">Use para incluir vendas que não apareceram nos relatórios.</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="form-group" style="margin-bottom:0">
+        <label>Aluno *</label>
+        <input type="text" id="add-student" placeholder="Nome completo">
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label>Consultor</label>
+        <select id="add-consultant" style="width:100%;padding:12px 16px;border:2px solid var(--gray);border-radius:10px;font-family:inherit;font-size:15px;outline:none">
+          <option value="">— Sem consultor —</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label>Tipo *</label>
+        <select id="add-type" style="width:100%;padding:12px 16px;border:2px solid var(--gray);border-radius:10px;font-family:inherit;font-size:15px;outline:none">
+          <option value="new">Novo (R$ 50)</option>
+          <option value="renewal">Rematrícula (R$ 25)</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label>Unidade *</label>
+        <select id="add-unit" style="width:100%;padding:12px 16px;border:2px solid var(--gray);border-radius:10px;font-family:inherit;font-size:15px;outline:none">
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label>Data *</label>
+        <input type="text" id="add-date" placeholder="dd/mm/aaaa">
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label>Contrato</label>
+        <input type="text" id="add-contract" placeholder="Descrição do contrato">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('modal-add-sale')">Cancelar</button>
+      <button class="btn-primary" onclick="submitAddSale()">Adicionar Venda</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL TROCAR SENHA -->
 <div class="modal-overlay" id="modal-pw">
   <div class="modal">
@@ -495,7 +539,8 @@ const ALL_MONTHS = ["Março/2026"];
 // ══════════════════════════════════════════════
 const USERS_KEY    = 'positiva_users';
 const SESSION_KEY  = 'positiva_session';
-const DISPUTES_KEY = 'positiva_disputes_' + MONTH.replace('/','_');
+const DISPUTES_KEY  = 'positiva_disputes_'  + MONTH.replace('/','_');
+const OVERRIDES_KEY = 'positiva_overrides_' + MONTH.replace('/','_');
 
 function loadUsers() {
   const saved = localStorage.getItem(USERS_KEY);
@@ -518,6 +563,12 @@ function loadDisputes() {
   return saved ? JSON.parse(saved) : [];
 }
 function saveDisputes(d) { localStorage.setItem(DISPUTES_KEY, JSON.stringify(d)); }
+
+function loadOverrides() {
+  const saved = localStorage.getItem(OVERRIDES_KEY);
+  return saved ? JSON.parse(saved) : { unassigned: [], added: [] };
+}
+function saveOverrides(o) { localStorage.setItem(OVERRIDES_KEY, JSON.stringify(o)); }
 
 // ══════════════════════════════════════════════
 //  STATE
@@ -682,16 +733,29 @@ function switchSection(id) {
 // ══════════════════════════════════════════════
 //  FILTER SALES
 // ══════════════════════════════════════════════
-function getFilteredSales(monthOverride) {
-  let sales = [...RAW_SALES];
+function getFilteredSales(monthOverride, opts) {
+  let sales = RAW_SALES.map(s => ({...s}));
+  const overrides = loadOverrides();
   // Apply dispute transfers
   disputes.filter(d => d.status === 'resolved' && d.action === 'transfer').forEach(d => {
     const s = sales.find(x => x.id === d.saleId && x.unit === d.unit);
     if (s) s.consultant = d.claimant;
   });
+  // Apply unassignments
+  overrides.unassigned.forEach(({id, unit}) => {
+    const s = sales.find(x => x.id === id && x.unit === unit);
+    if (s) s.consultant = '';
+  });
+  // Include manually added sales
+  sales = [...sales, ...overrides.added];
+
   const month = monthOverride || activeMonth;
   sales = sales.filter(s => s.month === month);
   if (activeUnit) sales = sales.filter(s => s.unit === activeUnit);
+  // Vendas sem dono são excluídas de todos os cálculos e visões (exceto tabela do coordenador)
+  if (!(opts && opts.includeUnassigned)) {
+    sales = sales.filter(s => !!s.consultant);
+  }
   return sales;
 }
 
@@ -897,8 +961,11 @@ function renderSales(sales) {
   const isCoord = session.role === 'coordinator';
   const unitTitle = activeUnit ? UNIT_LABELS[activeUnit] : 'Todas as Unidades';
 
+  // Coordenador vê todas inclusive sem dono; consultor não vê sem dono
+  if (isCoord) sales = getFilteredSales(null, {includeUnassigned: true});
+
   // Para consultor: montar opções de unidades onde ele tem vendas
-  const allSales = getFilteredSales();
+  const allSales = getFilteredSales(null, isCoord ? {includeUnassigned: true} : null);
   const consultorUnits = isCoord ? [] :
     [...new Set(allSales.filter(s=>s.consultant===session.name).map(s=>s.unit))];
 
@@ -926,6 +993,7 @@ function renderSales(sales) {
             ${getConsultants(allSales).map(c=>`<option value="${c}">${c.split(' ')[0]}</option>`).join('')}
           </select>` : ''}
           <input class="search-box" id="search-sales" placeholder="Buscar aluno, ID..." oninput="applyFilters()">
+          ${isCoord ? `<button class="btn-add" onclick="openAddSaleModal()" style="padding:8px 16px;font-size:13px">+ Adicionar Venda</button>` : ''}
         </div>
       </div>
       <div id="sales-table-body"></div>
@@ -939,14 +1007,15 @@ function applyFilters() {
   const type   = document.getElementById('type-filter')?.value || '';
   const cons   = document.getElementById('consultant-filter')?.value || '';
   const unit   = document.getElementById('unit-filter')?.value || '';
-  let sales = getFilteredSales();
+  const isCoord = session.role === 'coordinator';
+  let sales = getFilteredSales(null, isCoord ? {includeUnassigned:true} : null);
   if (type)   sales = sales.filter(s=>s.type===type);
   if (cons)   sales = sales.filter(s=>s.consultant===cons);
   if (unit)   sales = sales.filter(s=>s.unit===unit);
   if (search) sales = sales.filter(s=>
     s.student.toLowerCase().includes(search) ||
     s.id.toLowerCase().includes(search) ||
-    s.consultant.toLowerCase().includes(search)
+    (s.consultant||'').toLowerCase().includes(search)
   );
   renderSalesTable(sales);
 }
@@ -960,12 +1029,13 @@ function renderSalesTable(sales) {
   }
 
   const isCoord = session.role === 'coordinator';
+  const overrides = loadOverrides();
 
   body.innerHTML = `<table class="data-table">
     <thead><tr>
       <th>ID</th><th>Aluno</th><th>Consultor</th><th>Tipo</th>
       <th>Comissão</th><th>Data</th><th>Contrato</th>
-      ${!isCoord ? '<th>Ação</th>' : ''}
+      <th>Ação</th>
     </tr></thead>
     <tbody>
     ${sales.map(s => {
@@ -974,25 +1044,36 @@ function renderSalesTable(sales) {
       const isDisp  = !!dispute;
       const isRes   = !!resolved;
       const isMe    = s.consultant === session.name;
-      let statusTag = '';
-      if (isDisp) statusTag = '<span class="tag tag-disputed">Em Disputa</span>';
-      else if (isRes) statusTag = '<span class="tag tag-resolved">Resolvida</span>';
+      const isUnassigned = !s.consultant;
+      const isManual = !!s._manual;
+      const isAlreadyUnassigned = overrides.unassigned.some(u => u.id === s.id && u.unit === s.unit);
 
-      let actionCell = '';
-      if (!isCoord) {
-        if (!isMe && !isDisp && !isRes) {
+      let consultantCell = isUnassigned
+        ? '<span class="tag" style="background:#f5f5f5;color:#999;font-size:11px">Sem consultor</span>'
+        : `${s.consultant.split(' ').slice(0,2).join(' ')} ${isMe?'<span class="tag" style="background:#e8f5e9;color:#2e7d32;font-size:10px">Você</span>':''}`;
+
+      let actionCell = '<td></td>';
+
+      if (isCoord) {
+        if (isManual) {
+          actionCell = `<td><span class="tag" style="background:#e3f2fd;color:#1565c0;font-size:11px;margin-right:6px">Manual</span><button class="btn-del" onclick="deleteAddedSale('${s.id}')" style="font-size:11px;padding:3px 8px">Excluir</button></td>`;
+        } else if (isUnassigned || isAlreadyUnassigned) {
+          actionCell = `<td><button class="btn-sm btn-approve" onclick="reassignSale('${s.id}','${s.unit}')" style="font-size:11px">Reatribuir</button></td>`;
+        } else {
+          actionCell = `<td><button class="btn-sm btn-reject" onclick="unassignSale('${s.id}','${s.unit}')" style="font-size:11px">Remover Dono</button></td>`;
+        }
+      } else {
+        if (!isMe && !isDisp && !isRes && !isUnassigned) {
           actionCell = `<td><button class="btn-dispute" onclick="openDisputeModal('${s.id}','${s.unit}')">Contestar</button></td>`;
         } else if (isDisp && dispute.claimant === session.name) {
           actionCell = `<td><span style="font-size:12px;color:var(--warning);font-weight:700">Aguardando</span></td>`;
-        } else {
-          actionCell = `<td></td>`;
         }
       }
 
-      return `<tr class="${isMe?'mine':''}">
+      return `<tr class="${isMe?'mine':''}${isUnassigned?' style="opacity:.6"':''}">
         <td><strong>#${s.id}</strong></td>
         <td>${s.student}</td>
-        <td>${s.consultant.split(' ').slice(0,2).join(' ')} ${isMe?'<span class="tag" style="background:#e8f5e9;color:#2e7d32;font-size:10px">Você</span>':''}</td>
+        <td>${consultantCell}</td>
         <td><span class="tag ${s.type==='new'?'tag-new':'tag-renewal'}">${s.type==='new'?'Novo':'Rematrícula'}</span></td>
         <td><strong>R$ ${s.commission}</strong></td>
         <td>${s.date}</td>
@@ -1355,6 +1436,81 @@ function saveNewPw() {
   saveUsers(users);
   closeModal('modal-pw');
   renderAdmin();
+}
+
+// ══════════════════════════════════════════════
+//  GERENCIAR VENDAS (COORD)
+// ══════════════════════════════════════════════
+function unassignSale(id, unit) {
+  if (!confirm('Remover o dono desta venda? Ela ficará sem consultor atribuído.')) return;
+  const overrides = loadOverrides();
+  if (!overrides.unassigned.some(u => u.id === id && u.unit === unit)) {
+    overrides.unassigned.push({ id, unit });
+  }
+  saveOverrides(overrides);
+  destroyCharts();
+  renderSection('sales');
+}
+
+function reassignSale(id, unit) {
+  const overrides = loadOverrides();
+  overrides.unassigned = overrides.unassigned.filter(u => !(u.id === id && u.unit === unit));
+  saveOverrides(overrides);
+  destroyCharts();
+  renderSection('sales');
+}
+
+function deleteAddedSale(id) {
+  if (!confirm('Excluir esta venda manual?')) return;
+  const overrides = loadOverrides();
+  overrides.added = overrides.added.filter(s => s.id !== id);
+  saveOverrides(overrides);
+  destroyCharts();
+  renderSection('sales');
+}
+
+function openAddSaleModal() {
+  const allSales = getFilteredSales();
+  const consultants = getConsultants(allSales.filter(s => s.consultant));
+  const sel = document.getElementById('add-consultant');
+  sel.innerHTML = '<option value="">— Sem consultor —</option>' +
+    consultants.map(c => `<option value="${c}">${c.split(' ').slice(0,2).join(' ')}</option>`).join('');
+
+  // Populate unit select
+  const unitSel = document.getElementById('add-unit');
+  unitSel.innerHTML = UNIT_KEYS.map(u => `<option value="${u}">${UNIT_LABELS[u]||u}</option>`).join('');
+  if (activeUnit) unitSel.value = activeUnit;
+
+  document.getElementById('add-student').value = '';
+  document.getElementById('add-date').value = '';
+  document.getElementById('add-contract').value = '';
+  document.getElementById('add-type').value = 'new';
+  openModal('modal-add-sale');
+}
+
+function submitAddSale() {
+  const student  = document.getElementById('add-student').value.trim().toUpperCase();
+  const consultant = document.getElementById('add-consultant').value;
+  const type     = document.getElementById('add-type').value;
+  const unit     = document.getElementById('add-unit').value;
+  const date     = document.getElementById('add-date').value.trim();
+  const contract = document.getElementById('add-contract').value.trim() || '—';
+
+  if (!student || !date || !unit) { alert('Preencha aluno, data e unidade.'); return; }
+
+  const commission = type === 'new' ? 50 : 25;
+  const id = 'M' + Date.now();
+
+  const overrides = loadOverrides();
+  overrides.added.push({
+    id, student, consultant, type, commission, date,
+    contract, unit, unit_label: UNIT_LABELS[unit] || unit,
+    month: MONTH, _manual: true,
+  });
+  saveOverrides(overrides);
+  closeModal('modal-add-sale');
+  destroyCharts();
+  renderSection('sales');
 }
 
 // ══════════════════════════════════════════════
