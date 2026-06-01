@@ -544,33 +544,126 @@ select:focus{border-color:var(--navy)}
 
 <script>
 // ══════════════════════════════════════════════
-//  SUPABASE
+//  SUPABASE — operações por linha (concurrency-safe)
 // ══════════════════════════════════════════════
 const SB_URL = 'https://rolmzfaaivyhycugljlm.supabase.co';
 const SB_KEY = 'sb_publishable_GzqkJ2H0PY2EP66M-agnDg_6B-p-QWF';
 const db = supabase.createClient(SB_URL, SB_KEY);
 
-async function sbGet(key) {
-  try {
-    const { data, error } = await db.from('app_state').select('value').eq('key', key).single();
-    if (error || !data) return null;
-    return data.value;
-  } catch(e) { return null; }
+// Converte linha do DB para objeto de disputa JS
+function dbRowToDispute(r) {
+  return {
+    _localId: r.local_id,
+    saleId: r.sale_id, unit: r.unit, unit_label: r.unit_label,
+    originalConsultant: r.original_consultant, claimant: r.claimant,
+    reason: r.reason, defense: r.defense, defendedAt: r.defended_at,
+    status: r.status, action: r.action, resolution: r.resolution,
+    resolvedBy: r.resolved_by, resolvedAt: r.resolved_at,
+    createdAt: r.created_at_str, month: r.month,
+  };
 }
 
-async function sbSet(key, value) {
-  try {
-    await db.from('app_state').upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: 'key' });
-  } catch(e) { console.warn('Supabase save failed', e); }
+// Converte linha do DB para venda manual JS
+function dbRowToManual(r) {
+  return {
+    id: r.id, student: r.student, consultant: r.consultant,
+    type: r.type, commission: r.commission, date: r.sale_date,
+    contract: r.contract, unit: r.unit, unit_label: r.unit_label,
+    month: r.month, _manual: true,
+  };
 }
 
+// Sync completo: busca as 3 tabelas e atualiza estado local
 async function syncFromSupabase() {
-  const [d, o] = await Promise.all([
-    sbGet('disputes'),
-    sbGet('overrides_' + MONTH.replace('/','_'))
-  ]);
-  if (d !== null) localStorage.setItem(DISPUTES_KEY,  JSON.stringify(d));
-  if (o !== null) localStorage.setItem(OVERRIDES_KEY, JSON.stringify(o));
+  try {
+    const [{ data: dbD }, { data: dbU }, { data: dbM }] = await Promise.all([
+      db.from('disputes').select('*').eq('month', MONTH),
+      db.from('unassigned_sales').select('*').eq('month', MONTH),
+      db.from('manual_sales').select('*').eq('month', MONTH),
+    ]);
+    disputes = (dbD || []).map(dbRowToDispute);
+    const overrides = {
+      unassigned: (dbU || []).map(r => ({ id: r.sale_id, unit: r.unit })),
+      added: (dbM || []).map(dbRowToManual),
+    };
+    localStorage.setItem(DISPUTES_KEY,  JSON.stringify(disputes));
+    localStorage.setItem(OVERRIDES_KEY, JSON.stringify(overrides));
+  } catch(e) { console.warn('Supabase sync failed', e); }
+}
+
+// Operações individuais — disputes
+async function sbAddDispute(d) {
+  await db.from('disputes').insert({
+    local_id: d._localId, sale_id: d.saleId, unit: d.unit,
+    unit_label: d.unit_label, original_consultant: d.originalConsultant,
+    claimant: d.claimant, reason: d.reason, status: d.status,
+    created_at_str: d.createdAt, month: d.month,
+  });
+}
+async function sbUpdateDispute(d) {
+  await db.from('disputes').update({
+    defense: d.defense, defended_at: d.defendedAt,
+    status: d.status, action: d.action, resolution: d.resolution,
+    resolved_by: d.resolvedBy, resolved_at: d.resolvedAt,
+  }).eq('local_id', d._localId);
+}
+
+// Operações individuais — vendas sem dono
+async function sbUnassignSale(id, unit) {
+  await db.from('unassigned_sales').upsert({ sale_id: id, unit, month: MONTH }, { onConflict: 'sale_id,unit' });
+}
+async function sbReassignSale(id, unit) {
+  await db.from('unassigned_sales').delete().eq('sale_id', id).eq('unit', unit);
+}
+
+// Operações individuais — vendas manuais
+async function sbAddManualSale(s) {
+  await db.from('manual_sales').insert({
+    id: s.id, student: s.student, consultant: s.consultant,
+    type: s.type, commission: s.commission, sale_date: s.date,
+    contract: s.contract, unit: s.unit, unit_label: s.unit_label, month: s.month,
+  });
+}
+async function sbDeleteManualSale(id) {
+  await db.from('manual_sales').delete().eq('id', id);
+}
+
+// Realtime: qualquer mudança em qualquer tabela re-sincroniza e re-renderiza
+function setupRealtime() {
+  db.channel('positiva-realtime')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'disputes' }, handleRemoteChange)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'unassigned_sales' }, handleRemoteChange)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'manual_sales' }, handleRemoteChange)
+    .subscribe();
+}
+
+let _realtimeTimer = null;
+async function handleRemoteChange() {
+  // Debounce: evita múltiplos re-renders em cascata
+  clearTimeout(_realtimeTimer);
+  _realtimeTimer = setTimeout(async () => {
+    await syncFromSupabase();
+    destroyCharts();
+    buildSectionNav();
+    renderSection(activeSection);
+    showSyncToast('🔄 Atualizado em tempo real');
+  }, 400);
+}
+
+function showSyncToast(msg) {
+  let el = document.getElementById('sync-badge');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'sync-badge';
+    el.style.cssText = 'position:fixed;bottom:18px;right:18px;padding:8px 16px;border-radius:20px;font-size:12px;font-weight:700;z-index:9999;transition:opacity .4s';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.style.background = msg.includes('🔄') ? 'var(--navy)' : 'var(--success)';
+  el.style.color = '#fff';
+  el.style.opacity = '1';
+  clearTimeout(el._timer);
+  el._timer = setTimeout(() => { el.style.opacity = '0'; }, 2500);
 }
 
 // ══════════════════════════════════════════════
@@ -634,18 +727,15 @@ function loadDisputes() {
   const saved = localStorage.getItem(DISPUTES_KEY);
   return saved ? JSON.parse(saved) : [];
 }
-function saveDisputes(d) {
+function saveDisputesLocal(d) {
   localStorage.setItem(DISPUTES_KEY, JSON.stringify(d));
-  sbSet('disputes', d);
 }
-
 function loadOverrides() {
   const saved = localStorage.getItem(OVERRIDES_KEY);
   return saved ? JSON.parse(saved) : { unassigned: [], added: [] };
 }
-function saveOverrides(o) {
+function saveOverridesLocal(o) {
   localStorage.setItem(OVERRIDES_KEY, JSON.stringify(o));
-  sbSet('overrides_' + MONTH.replace('/','_'), o);
 }
 
 // ══════════════════════════════════════════════
@@ -721,29 +811,23 @@ async function bootApp() {
   document.getElementById('hdr-role').textContent  = session.role === 'coordinator' ? 'Coordenador' : 'Consultor';
   document.getElementById('hdr-avatar').textContent = session.name[0];
 
-  // Indicador de sincronização
-  const syncBadge = document.createElement('div');
-  syncBadge.id = 'sync-badge';
-  syncBadge.style.cssText = 'position:fixed;bottom:18px;right:18px;background:var(--navy);color:#fff;padding:8px 16px;border-radius:20px;font-size:12px;font-weight:700;z-index:9999;display:flex;align-items:center;gap:6px';
-  syncBadge.innerHTML = '⟳ Sincronizando...';
-  document.body.appendChild(syncBadge);
-
-  // Carrega dados locais primeiro para não travar a tela
+  // Mostra dados locais imediatamente
   disputes = loadDisputes();
   buildTabs();
   buildSectionNav();
   renderSection(activeSection);
+  showSyncToast('⟳ Sincronizando...');
 
-  // Sincroniza do Supabase em background
+  // Busca dados atualizados do Supabase
   await syncFromSupabase();
   disputes = loadDisputes();
   destroyCharts();
   buildSectionNav();
   renderSection(activeSection);
+  showSyncToast('✓ Sincronizado');
 
-  syncBadge.innerHTML = '✓ Sincronizado';
-  syncBadge.style.background = 'var(--success)';
-  setTimeout(() => syncBadge.remove(), 2000);
+  // Ativa Realtime para atualizações automáticas
+  setupRealtime();
 }
 
 // ══════════════════════════════════════════════
@@ -1621,32 +1705,35 @@ function saveNewPw() {
 // ══════════════════════════════════════════════
 //  GERENCIAR VENDAS (COORD)
 // ══════════════════════════════════════════════
-function unassignSale(id, unit) {
+async function unassignSale(id, unit) {
   if (!confirm('Remover o dono desta venda? Ela ficará sem consultor atribuído.')) return;
   const overrides = loadOverrides();
   if (!overrides.unassigned.some(u => u.id === id && u.unit === unit)) {
     overrides.unassigned.push({ id, unit });
   }
-  saveOverrides(overrides);
+  saveOverridesLocal(overrides);
   destroyCharts();
   renderSection('sales');
+  await sbUnassignSale(id, unit);
 }
 
-function reassignSale(id, unit) {
+async function reassignSale(id, unit) {
   const overrides = loadOverrides();
   overrides.unassigned = overrides.unassigned.filter(u => !(u.id === id && u.unit === unit));
-  saveOverrides(overrides);
+  saveOverridesLocal(overrides);
   destroyCharts();
   renderSection('sales');
+  await sbReassignSale(id, unit);
 }
 
-function deleteAddedSale(id) {
+async function deleteAddedSale(id) {
   if (!confirm('Excluir esta venda manual?')) return;
   const overrides = loadOverrides();
   overrides.added = overrides.added.filter(s => s.id !== id);
-  saveOverrides(overrides);
+  saveOverridesLocal(overrides);
   destroyCharts();
   renderSection('sales');
+  await sbDeleteManualSale(id);
 }
 
 function openAddSaleModal() {
@@ -1668,29 +1755,28 @@ function openAddSaleModal() {
   openModal('modal-add-sale');
 }
 
-function submitAddSale() {
-  const student  = document.getElementById('add-student').value.trim().toUpperCase();
+async function submitAddSale() {
+  const student    = document.getElementById('add-student').value.trim().toUpperCase();
   const consultant = document.getElementById('add-consultant').value;
-  const type     = document.getElementById('add-type').value;
-  const unit     = document.getElementById('add-unit').value;
-  const date     = document.getElementById('add-date').value.trim();
-  const contract = document.getElementById('add-contract').value.trim() || '—';
+  const type       = document.getElementById('add-type').value;
+  const unit       = document.getElementById('add-unit').value;
+  const date       = document.getElementById('add-date').value.trim();
+  const contract   = document.getElementById('add-contract').value.trim() || '—';
 
   if (!student || !date || !unit) { alert('Preencha aluno, data e unidade.'); return; }
 
-  const commission = type === 'new' ? 50 : 25;
-  const id = 'M' + Date.now();
-
+  const newSale = {
+    id: 'M' + Date.now(), student, consultant, type,
+    commission: type === 'new' ? 50 : 25, date, contract,
+    unit, unit_label: UNIT_LABELS[unit] || unit, month: MONTH, _manual: true,
+  };
   const overrides = loadOverrides();
-  overrides.added.push({
-    id, student, consultant, type, commission, date,
-    contract, unit, unit_label: UNIT_LABELS[unit] || unit,
-    month: MONTH, _manual: true,
-  });
-  saveOverrides(overrides);
+  overrides.added.push(newSale);
+  saveOverridesLocal(overrides);
   closeModal('modal-add-sale');
   destroyCharts();
   renderSection('sales');
+  await sbAddManualSale(newSale);
 }
 
 // ══════════════════════════════════════════════
@@ -1711,31 +1797,31 @@ function openDisputeModal(saleId, unit) {
   openModal('modal-dispute');
 }
 
-function submitDispute() {
+async function submitDispute() {
   const reason = document.getElementById('dispute-reason').value.trim();
   if (!reason) { alert('Informe o motivo da contestação.'); return; }
   const sales = getFilteredSales();
   const sale  = sales.find(s=>s.id===pendingDisputeSale.saleId&&s.unit===pendingDisputeSale.unit);
   if (!sale) return;
 
-  disputes.push({
+  const newDispute = {
+    _localId: Date.now() + '-' + Math.random().toString(36).slice(2),
     saleId: pendingDisputeSale.saleId,
-    unit:   pendingDisputeSale.unit,
+    unit: pendingDisputeSale.unit,
     unit_label: UNIT_LABELS[pendingDisputeSale.unit] || pendingDisputeSale.unit,
     originalConsultant: sale.consultant,
     claimant: session.name,
-    reason,
-    status: 'open',
+    reason, status: 'open',
     createdAt: new Date().toLocaleDateString('pt-BR'),
-    resolution: null,
-    resolvedBy: null,
-    resolvedAt: null,
-    action: null,
-  });
-  saveDisputes(disputes);
+    resolution: null, resolvedBy: null, resolvedAt: null, action: null,
+    defense: null, defendedAt: null, month: MONTH,
+  };
+  disputes.push(newDispute);
+  saveDisputesLocal(disputes);
   closeModal('modal-dispute');
   buildSectionNav();
   renderSection('disputes');
+  await sbAddDispute(newDispute);
 }
 
 // ══════════════════════════════════════════════
@@ -1756,15 +1842,16 @@ function openDefenseModal(idx) {
   openModal('modal-defense');
 }
 
-function submitDefense() {
+async function submitDefense() {
   const defense = document.getElementById('defense-reason').value.trim();
   if (!defense) { alert('Escreva sua defesa antes de enviar.'); return; }
   disputes[pendingDefenseIdx].defense = defense;
   disputes[pendingDefenseIdx].defendedAt = new Date().toLocaleDateString('pt-BR');
-  saveDisputes(disputes);
+  saveDisputesLocal(disputes);
   closeModal('modal-defense');
   buildSectionNav();
   renderSection('disputes');
+  await sbUpdateDispute(disputes[pendingDefenseIdx]);
 }
 
 // ══════════════════════════════════════════════
@@ -1788,7 +1875,7 @@ function openResolveModal(idx) {
   openModal('modal-resolve');
 }
 
-function resolveDispute(action) {
+async function resolveDispute(action) {
   const res = document.getElementById('resolve-reason').value.trim();
   if (!res) { alert('Informe a justificativa da decisão.'); return; }
   const d = disputes[pendingResolveIdx];
@@ -1797,10 +1884,11 @@ function resolveDispute(action) {
   d.resolution = res;
   d.resolvedBy = session.name;
   d.resolvedAt = new Date().toLocaleDateString('pt-BR');
-  saveDisputes(disputes);
+  saveDisputesLocal(disputes);
   closeModal('modal-resolve');
   buildSectionNav();
   renderSection('disputes');
+  await sbUpdateDispute(d);
 }
 
 // ══════════════════════════════════════════════
