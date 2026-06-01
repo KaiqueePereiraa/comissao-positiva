@@ -753,11 +753,21 @@ function buildSectionNav() {
     btn.textContent = s.label;
     if (s.id === 'disputes') {
       const open = disputes.filter(d => d.status === 'open').length;
-      if (open > 0) btn.textContent += ` ($<built-in function open>)`;
+      if (open > 0) btn.textContent += ` (${open})`;
     }
     btn.onclick = () => switchSection(s.id);
     nav.appendChild(btn);
   });
+
+  // Botão exportar visível direto na nav bar para o coordenador
+  if (session.role === 'coordinator') {
+    const exportBtn = document.createElement('button');
+    exportBtn.className = 'sec-btn';
+    exportBtn.innerHTML = '⬇ Exportar Planilha';
+    exportBtn.style.cssText = 'margin-left:auto;background:#e8f5e9;color:#2e7d32;border-color:#c8e6c9';
+    exportBtn.onclick = () => exportSalesCSV();
+    nav.appendChild(exportBtn);
+  }
 }
 
 function sectionLabel(id) {
