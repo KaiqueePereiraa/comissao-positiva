@@ -549,7 +549,8 @@ function loadUsers() {
   const consultants = [...new Set(RAW_SALES.map(s => s.consultant))].filter(Boolean);
   const users = { coordenador: { name:'Coordenador', role:'coordinator', pw:'positiva2026' } };
   consultants.forEach(name => {
-    const login = name.split(' ')[0].toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+    const parts = name.trim().split(/\s+/);
+    const login = (parts[0] + (parts.length > 1 ? parts[parts.length - 1] : '')).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
     users[login] = { name, role:'consultant', pw:'positiva123' };
   });
   saveUsers(users);
@@ -569,6 +570,19 @@ function loadOverrides() {
   return saved ? JSON.parse(saved) : { unassigned: [], added: [] };
 }
 function saveOverrides(o) { localStorage.setItem(OVERRIDES_KEY, JSON.stringify(o)); }
+
+// ══════════════════════════════════════════════
+//  DISPLAY NAME HELPER
+// ══════════════════════════════════════════════
+// Retorna "PrimeiroNome Sobrenome" para diferenciar homônimos
+function shortName(fullName) {
+  if (!fullName) return '—';
+  const parts = fullName.trim().split(/\s+/);
+  if (parts.length <= 2) return parts.map(p => p[0] + p.slice(1).toLowerCase()).join(' ');
+  const first = parts[0][0] + parts[0].slice(1).toLowerCase();
+  const last  = parts[parts.length - 1][0] + parts[parts.length - 1].slice(1).toLowerCase();
+  return first + ' ' + last;
+}
 
 // ══════════════════════════════════════════════
 //  STATE
@@ -923,7 +937,7 @@ function renderOverview(allSales) {
   `;
 
   const ranked = consultants.map(c => ({
-    name: c.split(' ')[0],
+    name: shortName(c),
     comm: calcCommission(salesForConsultant(c, sales)),
     new:  salesForConsultant(c, sales).filter(s=>s.type==='new').length,
     ren:  salesForConsultant(c, sales).filter(s=>s.type==='renewal').length,
@@ -990,7 +1004,7 @@ function renderSales(sales) {
           </select>
           ${isCoord ? `<select id="consultant-filter" onchange="applyFilters()">
             <option value="">Todos os consultores</option>
-            ${getConsultants(allSales).map(c=>`<option value="${c}">${c.split(' ')[0]}</option>`).join('')}
+            ${getConsultants(allSales).map(c=>`<option value="${c}">${shortName(c)}</option>`).join('')}
           </select>` : ''}
           <input class="search-box" id="search-sales" placeholder="Buscar aluno, ID..." oninput="applyFilters()">
           ${isCoord ? `<button class="btn-add" onclick="openAddSaleModal()" style="padding:8px 16px;font-size:13px">+ Adicionar Venda</button>
@@ -1051,7 +1065,7 @@ function renderSalesTable(sales) {
 
       let consultantCell = isUnassigned
         ? '<span class="tag" style="background:#f5f5f5;color:#999;font-size:11px">Sem consultor</span>'
-        : `${s.consultant.split(' ').slice(0,2).join(' ')} ${isMe?'<span class="tag" style="background:#e8f5e9;color:#2e7d32;font-size:10px">Você</span>':''}`;
+        : `${shortName(s.consultant)} ${isMe?'<span class="tag" style="background:#e8f5e9;color:#2e7d32;font-size:10px">Você</span>':''}`;
 
       let actionCell = '<td></td>';
 
@@ -1117,7 +1131,7 @@ function renderRanking(sales) {
           <div class="ranking-row">
             <div class="rank-pos ${i<3?'top':''}">${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</div>
             <div style="flex:1">
-              <div class="rank-name">${r.name.split(' ').slice(0,2).join(' ')}
+              <div class="rank-name">${r.name}
                 ${r.name===session.name?'<span class="tag" style="background:#e8f5e9;color:#2e7d32;font-size:10px">Você</span>':''}
               </div>
               <div class="rank-detail">${r.new} novo${r.new!==1?'s':''} · ${r.ren} rematrícula${r.ren!==1?'s':''}</div>
@@ -1169,8 +1183,8 @@ function renderDisputes(sales) {
           <strong>#${d.saleId}</strong>
           <span style="color:var(--mid);font-size:13px">${d.unit_label}</span>
         </div>
-        <p style="font-size:14px"><strong>Venda atual:</strong> ${d.originalConsultant.split(' ').slice(0,2).join(' ')}</p>
-        <p style="font-size:14px"><strong>Contestado por:</strong> ${d.claimant.split(' ').slice(0,2).join(' ')}</p>
+        <p style="font-size:14px"><strong>Venda atual:</strong> ${shortName(d.originalConsultant)}</p>
+        <p style="font-size:14px"><strong>Contestado por:</strong> ${shortName(d.claimant)}</p>
         <p class="dispute-reason"><strong>Motivo:</strong> ${d.reason}</p>
         <p style="font-size:12px;color:var(--mid)">Enviado em ${d.createdAt}</p>
         ${isCoord ? `<div class="dispute-actions">
@@ -1189,7 +1203,7 @@ function renderDisputes(sales) {
           <strong>#${d.saleId}</strong>
           <span style="color:var(--mid);font-size:13px">${d.unit_label}</span>
         </div>
-        <p style="font-size:14px"><strong>Decisão:</strong> ${d.action==='transfer'?`Transferida para ${d.claimant.split(' ')[0]}`:'Mantida com '+d.originalConsultant.split(' ')[0]}</p>
+        <p style="font-size:14px"><strong>Decisão:</strong> ${d.action==='transfer'?`Transferida para ${shortName(d.claimant)}`:'Mantida com '+shortName(d.originalConsultant)}</p>
         <p class="dispute-reason"><strong>Motivo da contestação:</strong> ${d.reason}</p>
         <div class="dispute-decision"><strong>Decisão do coordenador:</strong> ${d.resolution}<br><span style="font-size:11px">por ${d.resolvedBy} em ${d.resolvedAt}</span></div>
       </div>`;
@@ -1250,7 +1264,7 @@ function updateCompare() {
       consultants: consultants.length,
       ranked: consultants.map(c => {
         const cs = salesForConsultant(c, sales);
-        return {name:c.split(' ').slice(0,2).join(' '), comm:calcCommission(cs), new:cs.filter(s=>s.type==='new').length, ren:cs.filter(s=>s.type==='renewal').length};
+        return {name:shortName(c), comm:calcCommission(cs), new:cs.filter(s=>s.type==='new').length, ren:cs.filter(s=>s.type==='renewal').length};
       }).sort((a,b)=>b.comm-a.comm),
     };
   }
@@ -1345,7 +1359,7 @@ function updateCompare() {
   chartCmp1 = new Chart(ctx1, {
     type: 'bar',
     data: {
-      labels: allConsultants.map(n=>n.split(' ')[0]),
+      labels: allConsultants.map(n=>n),
       datasets: [
         {label:mA, data:allConsultants.map(n=>{const r=stA.ranked.find(x=>x.name===n);return r?r.comm:0}), backgroundColor:'#34425C', borderRadius:4},
         {label:mB, data:allConsultants.map(n=>{const r=stB.ranked.find(x=>x.name===n);return r?r.comm:0}), backgroundColor:'#BEF575', borderRadius:4},
@@ -1387,7 +1401,7 @@ function renderAdmin() {
           <div class="user-row">
             <div class="user-avatar">${u.name[0]}</div>
             <div class="user-info">
-              <div class="un">${u.name.split(' ').slice(0,2).join(' ')}</div>
+              <div class="un">${shortName(u.name)}</div>
               <div class="up">Login: <strong>${login}</strong> · Senha: <strong>${u.pw}</strong></div>
             </div>
             <button class="btn-edit-pw" onclick="openPwModal('${login}')">Alterar Senha</button>
@@ -1475,7 +1489,7 @@ function openAddSaleModal() {
   const consultants = getConsultants(allSales.filter(s => s.consultant));
   const sel = document.getElementById('add-consultant');
   sel.innerHTML = '<option value="">— Sem consultor —</option>' +
-    consultants.map(c => `<option value="${c}">${c.split(' ').slice(0,2).join(' ')}</option>`).join('');
+    consultants.map(c => `<option value="${c}">${shortName(c)}</option>`).join('');
 
   // Populate unit select
   const unitSel = document.getElementById('add-unit');
