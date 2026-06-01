@@ -993,7 +993,8 @@ function renderSales(sales) {
             ${getConsultants(allSales).map(c=>`<option value="${c}">${c.split(' ')[0]}</option>`).join('')}
           </select>` : ''}
           <input class="search-box" id="search-sales" placeholder="Buscar aluno, ID..." oninput="applyFilters()">
-          ${isCoord ? `<button class="btn-add" onclick="openAddSaleModal()" style="padding:8px 16px;font-size:13px">+ Adicionar Venda</button>` : ''}
+          ${isCoord ? `<button class="btn-add" onclick="openAddSaleModal()" style="padding:8px 16px;font-size:13px">+ Adicionar Venda</button>
+          <button onclick="exportSalesCSV()" style="padding:8px 16px;font-size:13px;background:#e8f5e9;color:#2e7d32;border:none;border-radius:8px;font-family:inherit;font-weight:800;cursor:pointer">⬇ Exportar Planilha</button>` : ''}
         </div>
       </div>
       <div id="sales-table-body"></div>
@@ -1587,6 +1588,51 @@ function resolveDispute(action) {
   closeModal('modal-resolve');
   buildSectionNav();
   renderSection('disputes');
+}
+
+// ══════════════════════════════════════════════
+//  EXPORTAR PLANILHA
+// ══════════════════════════════════════════════
+function exportSalesCSV() {
+  // Pega vendas com todos os overrides aplicados, excluindo sem dono
+  const sales = getFilteredSales(null, {includeUnassigned: false});
+
+  // Enriquece com info de disputa resolvida
+  const rows = sales.map(s => {
+    const dispute = disputes.find(d => d.saleId === s.id && d.unit === s.unit && d.status === 'resolved');
+    const origem  = s._manual ? 'Manual' : (dispute ? 'Disputa resolvida' : 'Relatório');
+    return {
+      'ID':          s.id,
+      'Aluno':       s.student,
+      'Consultor':   s.consultant,
+      'Tipo':        s.type === 'new' ? 'Novo' : 'Rematrícula',
+      'Comissão (R$)': s.commission,
+      'Data':        s.date,
+      'Contrato':    s.contract,
+      'Unidade':     s.unit_label,
+      'Mês':         s.month,
+      'Origem':      origem,
+    };
+  });
+
+  if (!rows.length) { alert('Nenhuma venda para exportar.'); return; }
+
+  const headers = Object.keys(rows[0]);
+  const escape  = v => `"${String(v).replace(/"/g, '""')}"`;
+  const csvContent = [
+    headers.map(escape).join(';'),
+    ...rows.map(r => headers.map(h => escape(r[h])).join(';'))
+  ].join('\n');
+
+  // BOM para Excel abrir UTF-8 corretamente
+  const blob = new Blob(['﻿' + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  const unit = activeUnit ? UNIT_LABELS[activeUnit].replace(/\s+/g,'_') : 'Todas_Unidades';
+  a.href     = url;
+  a.download = `Comissao_${MONTH.replace('/','_')}_${unit}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ══════════════════════════════════════════════
