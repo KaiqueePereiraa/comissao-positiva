@@ -538,22 +538,45 @@ const ALL_MONTHS = ["Março/2026"];
 //  STORAGE HELPERS
 // ══════════════════════════════════════════════
 const USERS_KEY    = 'positiva_users';
+const USERS_VER    = 'positiva_users_ver';
+const USERS_VER_ID = 'v2'; // incrementar aqui força regeneração dos logins
 const SESSION_KEY  = 'positiva_session';
 const DISPUTES_KEY  = 'positiva_disputes_'  + MONTH.replace('/','_');
 const OVERRIDES_KEY = 'positiva_overrides_' + MONTH.replace('/','_');
 
 function loadUsers() {
-  const saved = localStorage.getItem(USERS_KEY);
-  if (saved) return JSON.parse(saved);
-  // Gerar usuários padrão a partir dos consultores nos dados
+  const savedVer = localStorage.getItem(USERS_VER);
+  const saved    = localStorage.getItem(USERS_KEY);
+
+  // Se versão bate e já tem usuários salvos, usa o salvo
+  if (saved && savedVer === USERS_VER_ID) {
+    const parsed = JSON.parse(saved);
+    // Garante que o coordenador sempre existe
+    if (!parsed.coordenador) parsed.coordenador = { name:'Coordenador', role:'coordinator', pw:'positiva2026' };
+    return parsed;
+  }
+
+  // Versão nova ou sem dados: regenera logins a partir dos dados brutos
   const consultants = [...new Set(RAW_SALES.map(s => s.consultant))].filter(Boolean);
-  const users = { coordenador: { name:'Coordenador', role:'coordinator', pw:'positiva2026' } };
+  const users = {};
+
+  // Preserva senhas customizadas se existirem
+  const oldUsers = saved ? JSON.parse(saved) : {};
+
+  // Coordenador
+  users['coordenador'] = oldUsers['coordenador'] || { name:'Coordenador', role:'coordinator', pw:'positiva2026' };
+
   consultants.forEach(name => {
     const parts = name.trim().split(/\s+/);
-    const login = (parts[0] + (parts.length > 1 ? parts[parts.length - 1] : '')).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
-    users[login] = { name, role:'consultant', pw:'positiva123' };
+    const login = (parts[0] + (parts.length > 1 ? parts[parts.length - 1] : ''))
+      .toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+    // Busca senha antiga pelo nome completo para não perder
+    const oldEntry = Object.values(oldUsers).find(u => u.name === name);
+    users[login] = { name, role:'consultant', pw: oldEntry ? oldEntry.pw : 'positiva123' };
   });
+
   saveUsers(users);
+  localStorage.setItem(USERS_VER, USERS_VER_ID);
   return users;
 }
 
