@@ -678,14 +678,21 @@ function buildTabs() {
   bar.innerHTML = '';
 
   if (session.role === 'coordinator') {
-    UNIT_KEYS.forEach((uk, i) => {
+    // Aba "Todas as Unidades" primeiro
+    const allBtn = document.createElement('button');
+    allBtn.className = 'tab-btn active';
+    allBtn.textContent = '🏢 Todas as Unidades';
+    allBtn.onclick = () => switchUnit(null, allBtn);
+    bar.appendChild(allBtn);
+
+    UNIT_KEYS.forEach((uk) => {
       const btn = document.createElement('button');
-      btn.className = 'tab-btn' + (i===0?' active':'');
+      btn.className = 'tab-btn';
       btn.textContent = UNIT_LABELS[uk] || uk;
       btn.onclick = () => switchUnit(uk, btn);
       bar.appendChild(btn);
     });
-    activeUnit = UNIT_KEYS[0];
+    activeUnit = null; // começa com todas as unidades
   } else {
     const btn = document.createElement('button');
     btn.className = 'tab-btn active';
@@ -909,7 +916,7 @@ function renderOverview(allSales) {
     return;
   }
 
-  // Coordenador: visão geral da unidade selecionada
+  // Coordenador: visão geral da unidade selecionada (ou todas)
   const sales = allSales;
   const consultants = getConsultants(sales);
   const totalNew     = sales.filter(s=>s.type==='new').length;
@@ -917,6 +924,20 @@ function renderOverview(allSales) {
   const totalComm    = calcCommission(sales);
   const openDisputes = disputes.filter(d=>d.status==='open' && (!activeUnit||d.unit===activeUnit)).length;
   const unitTitle    = activeUnit ? UNIT_LABELS[activeUnit] : 'Todas as Unidades';
+
+  // Cards por unidade (só na visão geral)
+  const unitCardsHtml = !activeUnit ? `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:24px">
+      ${UNIT_KEYS.map(uk => {
+        const us = sales.filter(s => s.unit === uk);
+        const uc = calcCommission(us);
+        return `<div class="kpi-card" style="cursor:pointer" onclick="switchUnitByKey('${uk}')">
+          <div class="kpi-label" style="color:var(--navy)">${UNIT_LABELS[uk]}</div>
+          <div class="kpi-value" style="font-size:24px">R$ ${uc}</div>
+          <div class="kpi-sub">${us.length} vendas · ${us.filter(s=>s.type==='new').length} novos · ${us.filter(s=>s.type==='renewal').length} rematrículas</div>
+        </div>`;
+      }).join('')}
+    </div>` : '';
 
   el.innerHTML = `
     <p class="page-title">${unitTitle}</p>
@@ -947,13 +968,14 @@ function renderOverview(allSales) {
         <div class="kpi-sub" style="color:var(--warning)">${openDisputes>0?'Requer atenção':'Tudo ok'}</div>
       </div>
     </div>
+    ${unitCardsHtml}
     <div class="charts-grid">
       <div class="chart-card">
         <h3>Ranking de Comissão</h3>
         <canvas id="chart-ranking"></canvas>
       </div>
       <div class="chart-card">
-        <h3>Novos vs Rematrícula</h3>
+        <h3>${!activeUnit ? 'Comissão por Unidade' : 'Novos vs Rematrícula'}</h3>
         <canvas id="chart-compare"></canvas>
       </div>
     </div>
@@ -977,17 +999,43 @@ function renderOverview(allSales) {
   });
 
   const ctx2 = document.getElementById('chart-compare').getContext('2d');
-  chartCompare = new Chart(ctx2, {
-    type:'bar',
-    data:{
-      labels: ranked.map(r=>r.name),
-      datasets:[
-        {label:'Novos',      data:ranked.map(r=>r.new),backgroundColor:'#34425C',borderRadius:4},
-        {label:'Rematrícula',data:ranked.map(r=>r.ren),backgroundColor:'#BEF575',borderRadius:4},
-      ]
-    },
-    options:{responsive:true,plugins:{legend:{position:'bottom'}},scales:{x:{stacked:false},y:{beginAtZero:true}}}
-  });
+  if (!activeUnit) {
+    // Gráfico por unidade quando está na visão geral
+    const unitStats = UNIT_KEYS.map(uk => ({
+      label: (UNIT_LABELS[uk]||uk).replace('Positiva ','').replace('Acqua ',''),
+      new:   sales.filter(s=>s.unit===uk&&s.type==='new').length,
+      ren:   sales.filter(s=>s.unit===uk&&s.type==='renewal').length,
+      comm:  calcCommission(sales.filter(s=>s.unit===uk)),
+    }));
+    chartCompare = new Chart(ctx2, {
+      type:'bar',
+      data:{
+        labels: unitStats.map(u=>u.label),
+        datasets:[
+          {label:'Novos',      data:unitStats.map(u=>u.new), backgroundColor:'#34425C',borderRadius:4},
+          {label:'Rematrícula',data:unitStats.map(u=>u.ren), backgroundColor:'#BEF575',borderRadius:4},
+        ]
+      },
+      options:{responsive:true,plugins:{legend:{position:'bottom'}},scales:{y:{beginAtZero:true}}}
+    });
+  } else {
+    chartCompare = new Chart(ctx2, {
+      type:'bar',
+      data:{
+        labels: ranked.map(r=>r.name),
+        datasets:[
+          {label:'Novos',      data:ranked.map(r=>r.new),backgroundColor:'#34425C',borderRadius:4},
+          {label:'Rematrícula',data:ranked.map(r=>r.ren),backgroundColor:'#BEF575',borderRadius:4},
+        ]
+      },
+      options:{responsive:true,plugins:{legend:{position:'bottom'}},scales:{x:{stacked:false},y:{beginAtZero:true}}}
+    });
+  }
+}
+
+function switchUnitByKey(uk) {
+  const btn = [...document.querySelectorAll('.tab-btn')].find(b => b.textContent === (UNIT_LABELS[uk]||uk));
+  if (btn) switchUnit(uk, btn);
 }
 
 // ══════════════════════════════════════════════
