@@ -509,6 +509,23 @@ select:focus{border-color:var(--navy)}
   </div>
 </div>
 
+<!-- MODAL DEFESA DE DISPUTA -->
+<div class="modal-overlay" id="modal-defense">
+  <div class="modal">
+    <h3>⚔️ Defender Minha Venda</h3>
+    <div class="modal-info" id="defense-sale-info"></div>
+    <div style="background:#fff3e0;border-radius:8px;padding:10px 14px;font-size:13px;color:#e65100;margin-bottom:14px">
+      <strong>Contestação:</strong> <span id="defense-claim-reason"></span>
+    </div>
+    <p style="font-size:13px;font-weight:700;color:var(--mid);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Sua defesa</p>
+    <textarea id="defense-reason" placeholder="Explique por que esta venda deve permanecer com você..."></textarea>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('modal-defense')">Cancelar</button>
+      <button class="btn-primary" onclick="submitDefense()">Enviar Defesa</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL TROCAR SENHA -->
 <div class="modal-overlay" id="modal-pw">
   <div class="modal">
@@ -618,6 +635,7 @@ let activeMonth = ALL_MONTHS[ALL_MONTHS.length - 1] || MONTH;
 let activeSection = 'overview';
 let pendingDisputeSale = null;
 let pendingResolveIdx  = null;
+let pendingDefenseIdx  = null;
 let pendingPwLogin     = null;
 let chartRanking = null;
 let chartCompare = null;
@@ -1153,7 +1171,11 @@ function renderSalesTable(sales) {
         if (!isMe && !isDisp && !isRes && !isUnassigned) {
           actionCell = `<td><button class="btn-dispute" onclick="openDisputeModal('${s.id}','${s.unit}')">Contestar</button></td>`;
         } else if (isDisp && dispute.claimant === session.name) {
-          actionCell = `<td><span style="font-size:12px;color:var(--warning);font-weight:700">Aguardando</span></td>`;
+          actionCell = `<td><span style="font-size:12px;color:var(--warning);font-weight:700">Aguardando decisão</span></td>`;
+        } else if (isDisp && s.consultant === session.name && !dispute.defense) {
+          actionCell = `<td><button class="btn-sm btn-approve" onclick="openDefenseModal(${disputes.indexOf(dispute)})" style="font-size:11px">⚔️ Me Defender</button></td>`;
+        } else if (isDisp && s.consultant === session.name && dispute.defense) {
+          actionCell = `<td><span style="font-size:12px;color:var(--success);font-weight:700">✓ Defesa enviada</span></td>`;
         }
       }
 
@@ -1257,11 +1279,24 @@ function renderDisputes(sales) {
         </div>
         <p style="font-size:14px"><strong>Venda atual:</strong> ${shortName(d.originalConsultant)}</p>
         <p style="font-size:14px"><strong>Contestado por:</strong> ${shortName(d.claimant)}</p>
-        <p class="dispute-reason"><strong>Motivo:</strong> ${d.reason}</p>
+        <div style="background:#fff3e0;border-radius:8px;padding:10px 14px;margin:8px 0">
+          <p style="font-size:13px"><strong>Motivo da contestação:</strong> ${d.reason}</p>
+        </div>
+        ${d.defense ? `
+        <div style="background:#e8f5e9;border-radius:8px;padding:10px 14px;margin:8px 0">
+          <p style="font-size:13px"><strong>Defesa de ${shortName(d.originalConsultant)}:</strong> ${d.defense}</p>
+        </div>` : (session.name === d.originalConsultant && !isCoord ? `
+        <div style="background:#fff8e1;border-radius:8px;padding:8px 12px;margin:8px 0;font-size:12px;color:#f57f17">
+          ⚠️ Você ainda não se defendeu desta contestação.
+        </div>` : `
+        <div style="background:#f5f5f5;border-radius:8px;padding:8px 12px;margin:8px 0;font-size:12px;color:var(--mid)">
+          Aguardando defesa de ${shortName(d.originalConsultant)}...
+        </div>`)}
         <p style="font-size:12px;color:var(--mid)">Enviado em ${d.createdAt}</p>
-        ${isCoord ? `<div class="dispute-actions">
-          <button class="btn-sm btn-transfer" onclick="openResolveModal(${disputes.indexOf(d)})">Analisar e Decidir</button>
-        </div>` : ''}
+        <div class="dispute-actions">
+          ${isCoord ? `<button class="btn-sm btn-transfer" onclick="openResolveModal(${disputes.indexOf(d)})">Analisar e Decidir</button>` : ''}
+          ${!isCoord && session.name === d.originalConsultant && !d.defense ? `<button class="btn-sm btn-approve" onclick="openDefenseModal(${disputes.indexOf(d)})">⚔️ Me Defender</button>` : ''}
+        </div>
       </div>`;
     });
   }
@@ -1646,16 +1681,50 @@ function submitDispute() {
 }
 
 // ══════════════════════════════════════════════
+//  DEFENSE MODAL
+// ══════════════════════════════════════════════
+function openDefenseModal(idx) {
+  pendingDefenseIdx = idx;
+  const d = disputes[idx];
+  const sales = getFilteredSales();
+  const sale  = sales.find(s => s.id === d.saleId && s.unit === d.unit);
+  document.getElementById('defense-sale-info').innerHTML = `
+    <strong>Aluno:</strong> ${sale ? sale.student : d.saleId} (#${d.saleId})<br>
+    <strong>Contestado por:</strong> ${shortName(d.claimant)}<br>
+    <strong>Data:</strong> ${sale ? sale.date : '—'}
+  `;
+  document.getElementById('defense-claim-reason').textContent = d.reason;
+  document.getElementById('defense-reason').value = '';
+  openModal('modal-defense');
+}
+
+function submitDefense() {
+  const defense = document.getElementById('defense-reason').value.trim();
+  if (!defense) { alert('Escreva sua defesa antes de enviar.'); return; }
+  disputes[pendingDefenseIdx].defense = defense;
+  disputes[pendingDefenseIdx].defendedAt = new Date().toLocaleDateString('pt-BR');
+  saveDisputes(disputes);
+  closeModal('modal-defense');
+  buildSectionNav();
+  renderSection('disputes');
+}
+
+// ══════════════════════════════════════════════
 //  RESOLVE MODAL
 // ══════════════════════════════════════════════
 function openResolveModal(idx) {
   pendingResolveIdx = idx;
   const d = disputes[idx];
   document.getElementById('resolve-info').innerHTML = `
-    <strong>Venda #${d.saleId}</strong> — ${d.unit_label}<br>
-    <strong>Cadastrado por:</strong> ${d.originalConsultant}<br>
-    <strong>Contestado por:</strong> ${d.claimant}<br>
-    <strong>Motivo:</strong> ${d.reason}
+    <strong>Venda #${d.saleId}</strong> — ${d.unit_label}<br><br>
+    <div style="background:#fff3e0;border-radius:8px;padding:10px 12px;margin-bottom:8px">
+      <strong>⚔️ Contestação de ${shortName(d.claimant)}:</strong><br>
+      <span style="font-size:13px">${d.reason}</span>
+    </div>
+    <div style="background:${d.defense ? '#e8f5e9' : '#f5f5f5'};border-radius:8px;padding:10px 12px">
+      <strong>🛡️ Defesa de ${shortName(d.originalConsultant)}:</strong><br>
+      <span style="font-size:13px">${d.defense || '<em style="color:#999">Sem defesa registrada</em>'}</span>
+    </div>
   `;
   document.getElementById('resolve-reason').value = '';
   openModal('modal-resolve');
