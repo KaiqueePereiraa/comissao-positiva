@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Comissão Positiva</title>
+<title>Bônus Positiva</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,800;1,900&display=swap" rel="stylesheet">
 <style>
@@ -865,13 +865,13 @@ function renderOverview(allSales) {
         <div class="divider"></div>
         <div class="mh-item"><div class="mh-val">${myRen}</div><div class="mh-lbl">Rematrículas</div></div>
         <div class="divider"></div>
-        <div class="mh-item"><div class="mh-val">R$&nbsp;${myComm}</div><div class="mh-lbl">Minha Comissão</div></div>
+        <div class="mh-item"><div class="mh-val">R$&nbsp;${myComm}</div><div class="mh-lbl">Minha Bônus</div></div>
       </div>
       <p class="page-title">Meu Desempenho</p>
       <p class="page-sub">${MONTH} · Unidade(s): ${myUnits}</p>
       <div class="kpi-grid">
         <div class="kpi-card highlight">
-          <div class="kpi-label">Minha Comissão</div>
+          <div class="kpi-label">Minha Bônus</div>
           <div class="kpi-value">R$ ${myComm}</div>
           <div class="kpi-sub">${my.length} vendas</div>
         </div>
@@ -945,7 +945,7 @@ function renderOverview(allSales) {
     <p class="page-sub">${MONTH} · ${sales.length} vendas no total</p>
     <div class="kpi-grid">
       <div class="kpi-card highlight">
-        <div class="kpi-label">Total Comissões</div>
+        <div class="kpi-label">Total Bônus</div>
         <div class="kpi-value">R$ ${totalComm}</div>
         <div class="kpi-sub">${sales.length} vendas</div>
       </div>
@@ -972,11 +972,11 @@ function renderOverview(allSales) {
     ${unitCardsHtml}
     <div class="charts-grid">
       <div class="chart-card">
-        <h3>Ranking de Comissão</h3>
+        <h3>Ranking de Bônus</h3>
         <canvas id="chart-ranking"></canvas>
       </div>
       <div class="chart-card">
-        <h3>${!activeUnit ? 'Comissão por Unidade' : 'Novos vs Rematrícula'}</h3>
+        <h3>${!activeUnit ? 'Bônus por Unidade' : 'Novos vs Rematrícula'}</h3>
         <canvas id="chart-compare"></canvas>
       </div>
     </div>
@@ -994,7 +994,7 @@ function renderOverview(allSales) {
     type:'bar',
     data:{
       labels: ranked.map(r=>r.name),
-      datasets:[{label:'Comissão (R$)',data:ranked.map(r=>r.comm),backgroundColor:'#BEF575',borderRadius:6}]
+      datasets:[{label:'Bônus (R$)',data:ranked.map(r=>r.comm),backgroundColor:'#BEF575',borderRadius:6}]
     },
     options:{responsive:true,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{beginAtZero:true}}}
   });
@@ -1121,7 +1121,7 @@ function renderSalesTable(sales) {
   body.innerHTML = `<table class="data-table">
     <thead><tr>
       <th>ID</th><th>Aluno</th><th>Consultor</th><th>Tipo</th>
-      <th>Comissão</th><th>Data</th><th>Contrato</th>
+      <th>Bônus</th><th>Data</th><th>Contrato</th>
       <th>Ação</th>
     </tr></thead>
     <tbody>
@@ -1197,7 +1197,7 @@ function renderRanking(sales) {
     <p class="page-title">Ranking — ${unitTitle}</p>
     <p class="page-sub">${MONTH}</p>
     <div class="table-card">
-      <h3>Consultores por Comissão</h3>
+      <h3>Consultores por Bônus</h3>
       <div style="margin-top:16px">
         ${ranked.map((r,i) => `
           <div class="ranking-row">
@@ -1377,7 +1377,7 @@ function updateCompare() {
           <tr><td><strong>Total Vendas</strong></td><td>${stA.total}</td><td>${stB.total}</td><td>${delta(stA.total,stB.total)} ${deltaR(stA.total,stB.total)}</td></tr>
           <tr><td>Alunos Novos</td><td>${stA.newCount}</td><td>${stB.newCount}</td><td>${delta(stA.newCount,stB.newCount)} ${deltaR(stA.newCount,stB.newCount)}</td></tr>
           <tr><td>Rematrículas</td><td>${stA.renCount}</td><td>${stB.renCount}</td><td>${delta(stA.renCount,stB.renCount)} ${deltaR(stA.renCount,stB.renCount)}</td></tr>
-          <tr><td><strong>Total Comissão</strong></td><td><strong>R$ ${stA.commission}</strong></td><td><strong>R$ ${stB.commission}</strong></td><td>${delta(stA.commission,stB.commission)} ${deltaR(stA.commission,stB.commission)}</td></tr>
+          <tr><td><strong>Total Bônus</strong></td><td><strong>R$ ${stA.commission}</strong></td><td><strong>R$ ${stB.commission}</strong></td><td>${delta(stA.commission,stB.commission)} ${deltaR(stA.commission,stB.commission)}</td></tr>
           <tr><td>Consultores Ativos</td><td>${stA.consultants}</td><td>${stB.consultants}</td><td>${delta(stA.consultants,stB.consultants)}</td></tr>
         </tbody>
       </table>
@@ -1386,7 +1386,7 @@ function updateCompare() {
     <!-- Charts -->
     <div class="charts-grid" style="margin-bottom:20px">
       <div class="chart-card">
-        <h3>Comissão por Consultor — ${mA} vs ${mB}</h3>
+        <h3>Bônus por Consultor — ${mA} vs ${mB}</h3>
         <canvas id="chart-cmp1"></canvas>
       </div>
       <div class="chart-card">
@@ -1401,8 +1401,8 @@ function updateCompare() {
       <table class="data-table">
         <thead><tr>
           <th>Consultor</th>
-          <th style="color:var(--navy)">Comissão ${mA}</th>
-          <th style="color:var(--dark)">Comissão ${mB}</th>
+          <th style="color:var(--navy)">Bônus ${mA}</th>
+          <th style="color:var(--dark)">Bônus ${mB}</th>
           <th>Variação</th>
           <th style="color:var(--navy)">Vendas ${mA}</th>
           <th style="color:var(--dark)">Vendas ${mB}</th>
@@ -1426,7 +1426,7 @@ function updateCompare() {
     </div>
   `;
 
-  // Chart 1: comissão lado a lado por consultor
+  // Chart 1: bônus lado a lado por consultor
   const ctx1 = document.getElementById('chart-cmp1').getContext('2d');
   chartCmp1 = new Chart(ctx1, {
     type: 'bar',
@@ -1692,7 +1692,7 @@ function exportSalesCSV() {
       'Aluno':       s.student,
       'Consultor':   s.consultant,
       'Tipo':        s.type === 'new' ? 'Novo' : 'Rematrícula',
-      'Comissão (R$)': s.commission,
+      'Bônus (R$)': s.commission,
       'Data':        s.date,
       'Contrato':    s.contract,
       'Unidade':     s.unit_label,
@@ -1716,7 +1716,7 @@ function exportSalesCSV() {
   const a    = document.createElement('a');
   const unit = activeUnit ? UNIT_LABELS[activeUnit].replace(/\s+/g,'_') : 'Todas_Unidades';
   a.href     = url;
-  a.download = `Comissao_${MONTH.replace('/','_')}_${unit}.csv`;
+  a.download = `Bonus_${MONTH.replace('/','_')}_${unit}.csv`;
   a.click();
   URL.revokeObjectURL(url);
 }
