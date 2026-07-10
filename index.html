@@ -289,6 +289,12 @@ body{font-family:'Avenir Next','Avenir','Montserrat',sans-serif;background:var(-
   border-radius:8px;font-family:inherit;font-size:14px;font-weight:800;cursor:pointer;
 }
 
+/* ── TOGGLE SWITCH ── */
+.toggle-switch{display:inline-block;width:44px;height:24px;background:#ccc;border-radius:12px;position:relative;transition:.2s;flex-shrink:0}
+.toggle-switch::after{content:"";position:absolute;top:2px;left:2px;width:20px;height:20px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.toggle-switch.on{background:var(--green)}
+.toggle-switch.on::after{left:22px}
+
 /* ── MODAL ── */
 .modal-overlay{
   display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);
@@ -609,6 +615,31 @@ async function syncFromSupabase() {
     localStorage.setItem(DISPUTES_KEY,  JSON.stringify(disputes));
     localStorage.setItem(OVERRIDES_KEY, JSON.stringify(overrides));
   } catch(e) { console.warn('Supabase sync failed', e); }
+
+  // Configuração de visibilidade — em try separado: se a tabela app_settings ainda não
+  // existir, não deve derrubar a sincronização de disputas/vendas acima.
+  try {
+    const { data: dbS } = await db.from('app_settings').select('*').eq('key', 'sales_visible_to_consultants');
+    if (dbS && dbS[0]) {
+      salesVisibleToConsultants = dbS[0].value !== 'false';
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify({salesVisibleToConsultants}));
+    }
+  } catch(e) { console.warn('Settings sync failed (rode a migração app_settings?)', e); }
+}
+
+async function setSalesVisibility(visible) {
+  salesVisibleToConsultants = visible;
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify({salesVisibleToConsultants}));
+  buildSectionNav();
+  renderAdmin();
+  if (session.role !== 'coordinator' && activeSection === 'sales' && !visible) {
+    switchSection('overview');
+  }
+  const res = await db.from('app_settings').upsert(
+    { key: 'sales_visible_to_consultants', value: visible ? 'true' : 'false' },
+    { onConflict: 'key' }
+  );
+  checkSbResult(res, 'configuração de visibilidade');
 }
 
 // Toda escrita no Supabase passa por aqui — se falhar (RLS, coluna incompatível, rede),
@@ -672,6 +703,7 @@ function setupRealtime() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'disputes' }, handleRemoteChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'unassigned_sales' }, handleRemoteChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'manual_sales' }, handleRemoteChange)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, handleRemoteChange)
     .subscribe();
 }
 
@@ -682,6 +714,9 @@ async function handleRemoteChange() {
     await syncFromSupabase();
     destroyCharts();
     buildSectionNav();
+    if (session.role !== 'coordinator' && activeSection === 'sales' && !salesVisibleToConsultants) {
+      activeSection = 'overview';
+    }
     renderSection(activeSection);
     showSyncToast('🔄 Atualizado em tempo real');
   }, 400);
@@ -736,6 +771,7 @@ const USERS_VER_ID  = 'v4'; // incrementar aqui força regeneração dos logins
 const SESSION_KEY   = 'positiva_session';
 const DISPUTES_KEY  = 'positiva_disputes';
 const OVERRIDES_KEY = 'positiva_overrides_' + MONTH.replace('/','_');
+const SETTINGS_KEY  = 'positiva_settings'; // global, não é por mês
 
 // Senhas nunca ficam em texto puro no HTML — só o hash (SHA-256 + sal fixo) é armazenado/comparado.
 async function hashPw(pw) {
@@ -787,10 +823,16 @@ function loadOverrides() {
 }
 function saveOverridesLocal(o) { localStorage.setItem(OVERRIDES_KEY, JSON.stringify(o)); }
 
+function loadSettings() {
+  const saved = localStorage.getItem(SETTINGS_KEY);
+  return saved ? JSON.parse(saved) : { salesVisibleToConsultants: true };
+}
+
 // ══════════════════════════════════════════════
 //  STATE
 // ══════════════════════════════════════════════
 let session     = null;
+let salesVisibleToConsultants = loadSettings().salesVisibleToConsultants;
 let users       = {};
 let disputes    = [];
 let activeUnit  = null;
@@ -928,9 +970,10 @@ function buildSectionNav() {
   const nav = document.getElementById('section-nav');
   nav.innerHTML = '';
 
+  const showSales = session.role === 'coordinator' || salesVisibleToConsultants;
   const sections = [
     {id:'overview',  label:'Visão Geral'},
-    {id:'sales',     label:'Vendas'},
+    ...(showSales ? [{id:'sales', label:'Vendas'}] : []),
     {id:'ranking',   label:'Ranking'},
     {id:'disputes',  label:'Disputas'},
   ];
@@ -1750,6 +1793,15 @@ function renderAdmin() {
   el.innerHTML = `
     <p class="page-title">Gerenciar Usuários</p>
     <p class="page-sub">Adicione, remova ou altere senhas dos consultores</p>
+
+    <div class="admin-section">
+      <h3>Visibilidade de Vendas para Consultores</h3>
+      <p style="font-size:13px;color:var(--mid);margin-bottom:16px">Quando ligado, consultores veem a aba "Vendas" e podem contestar. Quando desligado, a aba fica oculta para eles (vale para todos, em tempo real).</p>
+      <label style="display:flex;align-items:center;gap:12px;cursor:pointer;width:fit-content">
+        <span class="toggle-switch ${salesVisibleToConsultants?'on':''}" onclick="setSalesVisibility(!salesVisibleToConsultants)"></span>
+        <span style="font-weight:700;font-size:14px;color:${salesVisibleToConsultants?'#2e7d32':'#c62828'}">${salesVisibleToConsultants ? 'Ligado — vendas visíveis' : 'Desligado — vendas ocultas'}</span>
+      </label>
+    </div>
 
     <div class="admin-section">
       <h3>Consultores Cadastrados (${userList.length})</h3>
