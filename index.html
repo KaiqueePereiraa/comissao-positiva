@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Bônus Positiva</title>
+<title>Comissão Positiva</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,800;1,900&display=swap" rel="stylesheet">
@@ -202,6 +202,10 @@ body{font-family:'Avenir Next','Avenir','Montserrat',sans-serif;background:var(-
 .data-table tr:hover td{background:#f8f9fa}
 .data-table tr.mine td{background:#f0fff4}
 .data-table tr.mine td{border-left:3px solid var(--green)}
+.data-table tr.split-pair td{border-bottom:none}
+.data-table tr.split-sub td{border-top:1px dashed #e8eaed;padding-top:6px;padding-bottom:12px}
+.data-table tr.split-sub td:first-child::before{content:'↳ ';color:var(--gray)}
+.data-table tr.split-sub + tr:not(.split-sub) td{border-top:2px solid #e8eaed}
 .tag{
   display:inline-flex;align-items:center;padding:3px 10px;
   border-radius:20px;font-size:12px;font-weight:700;
@@ -550,7 +554,12 @@ const SB_URL = 'https://rolmzfaaivyhycugljlm.supabase.co';
 const SB_KEY = 'sb_publishable_GzqkJ2H0PY2EP66M-agnDg_6B-p-QWF';
 const db = supabase.createClient(SB_URL, SB_KEY);
 
-// Converte linha do DB para objeto de disputa JS
+// Os ids de comissão dividida (cadastro/conversão) usam sufixo -cad/-conv/-full/-ren;
+// o id "limpo" (matrícula/aluno) é o mesmo sufixo removido — evita precisar de coluna extra no Supabase.
+function saleIdFromLine(lineId) {
+  return String(lineId || '').replace(/-(cad|conv|full|ren)$/, '');
+}
+
 function dbRowToDispute(r) {
   return {
     _localId: r.local_id,
@@ -559,15 +568,14 @@ function dbRowToDispute(r) {
     reason: r.reason, defense: r.defense, defendedAt: r.defended_at,
     status: r.status, action: r.action, resolution: r.resolution,
     resolvedBy: r.resolved_by, resolvedAt: r.resolved_at,
-    createdAt: r.created_at_str, month: r.month,
+    createdAt: r.created_at_str, month: r.month, displayId: saleIdFromLine(r.sale_id),
   };
 }
 
-// Converte linha do DB para venda manual JS
 function dbRowToManual(r) {
   return {
-    id: r.id, student: r.student, consultant: r.consultant,
-    type: r.type, commission: r.commission, date: r.sale_date,
+    id: r.id, line_id: r.id, student: r.student, consultant: r.consultant,
+    type: r.type, role: r.consultant ? 'completo' : null, commission: r.commission, date: r.sale_date,
     contract: r.contract, unit: r.unit, unit_label: r.unit_label,
     month: r.month, _manual: true,
   };
@@ -639,7 +647,6 @@ function setupRealtime() {
 
 let _realtimeTimer = null;
 async function handleRemoteChange() {
-  // Debounce: evita múltiplos re-renders em cascata
   clearTimeout(_realtimeTimer);
   _realtimeTimer = setTimeout(async () => {
     await syncFromSupabase();
@@ -669,74 +676,13 @@ function showSyncToast(msg) {
 // ══════════════════════════════════════════════
 //  DADOS EMBUTIDOS
 // ══════════════════════════════════════════════
-const RAW_SALES  = [{"id": "20242", "student": "WELINGTON BISPO DA SILVA", "consultant": "RAYNY VITORIA PACHECO DOS SANTOS", "type": "new", "commission": 50, "date": "19/05/2026", "contract": "INICIAÇÃO ADULTO RELAMPAGO - 2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras", "month": "Maio/2026"}, {"id": "20212", "student": "THEO LIMA TUÃO", "consultant": "ADRIELLY SANTANA SABINO", "type": "new", "commission": 50, "date": "07/05/2026", "contract": "BEBE II PM 6 meses - DCC1", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras", "month": "Maio/2026"}, {"id": "20241", "student": "REGIANE GOUVEIA RIBEIRO", "consultant": "RAYNY VITORIA PACHECO DOS SANTOS", "type": "new", "commission": 50, "date": "19/05/2026", "contract": "INICIAÇÃO ADULTO RELAMPAGO - 2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras", "month": "Maio/2026"}, {"id": "20171", "student": "MARCOS GUIMARAES", "consultant": "KAIQUE PEREIRA SIQUEIRA", "type": "new", "commission": 50, "date": "06/05/2026", "contract": "ADULTO CONDICIONAMENTO PM 6 meses- DCC1", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras", "month": "Maio/2026"}, {"id": "20172", "student": "MAITE QUEIROZ DOS SANTOS", "consultant": "MARIA EDUARDA SANTOS LOUSSURDO", "type": "new", "commission": 50, "date": "15/01/2026", "contract": "BEBE II PM 12 meses- DCC2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras", "month": "Maio/2026"}, {"id": "20199", "student": "LUCIMARA SALGADO DA CONCEICAO", "consultant": "ADRIELLY SANTANA SABINO", "type": "new", "commission": 50, "date": "12/05/2026", "contract": "HIDROGINASTICA PM 12 meses - DCC3", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras", "month": "Maio/2026"}, {"id": "20247", "student": "LÚCIA ELENA DIAS DESSABATO", "consultant": "RAYNY VITORIA PACHECO DOS SANTOS", "type": "new", "commission": 50, "date": "21/05/2026", "contract": "BEBE I PM 6 meses- DCC2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras", "month": "Maio/2026"}, {"id": "20273", "student": "LIZ COSTA PAIXAO", "consultant": "KAIQUE PEREIRA SIQUEIRA", "type": "new", "commission": 50, "date": "26/05/2026", "contract": "INICIAÇÃO - 1 RELAMPAGO", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras", "month": "Maio/2026"}, {"id": "20278", "student": "LIAM NEVES PINK", "consultant": "KAIQUE PEREIRA SIQUEIRA", "type": "new", "commission": 50, "date": "25/05/2026", "contract": "BEBE I PM 12 meses - DCC1", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras", "month": "Maio/2026"}, {"id": "20258", "student": "LAURIANE SOUZA BISSA GONÇALVES", "consultant": "ADRIELLY SANTANA SABINO", "type": "new", "commission": 50, "date": "19/05/2026", "contract": "INICIAÇÃO ADULTO PM 6 meses - DCC1", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras", "month": "Maio/2026"}, {"id": "20238", "student": "ISADORA THOM RODRIGUES", "consultant": "RAYNY VITORIA PACHECO DOS SANTOS", "type": "new", "commission": 50, "date": "18/05/2026", "contract": "BEBE I PM 12 meses - DCC1", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras", "month": "Maio/2026"}, {"id": "20288", "student": "ISABELLA DOS SANTOS MOREIRA", "consultant": "ADRIELLY SANTANA SABINO", "type": "new", "commission": 50, "date": "27/05/2026", "contract": "INICIAÇÃO INFANTIL ANTECIPADO - 2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras", "month": "Maio/2026"}, {"id": "20272", "student": "ISABELE DO SACRAMENTO RONCETTI", "consultant": "KAIQUE PEREIRA SIQUEIRA", "type": "new", "commission": 50, "date": "26/05/2026", "contract": "BEBE I PM 12 meses- DCC2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras", "month": "Maio/2026"}, {"id": "20286", "student": "FRANCISCO RAMOS CAITANO", "consultant": "RAYNY VITORIA PACHECO DOS SANTOS", "type": "new", "commission": 50, "date": "27/05/2026", "contract": "HIDROGINASTICA PM 6 meses - DCC2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras", "month": "Maio/2026"}, {"id": "20175", "student": "FABIO BERSAN ROCHA", "consultant": "ADRIELLY SANTANA SABINO", "type": "new", "commission": 50, "date": "06/05/2026", "contract": "INICIAÇÃO ADULTO PM 6 meses - DCC2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras", "month": "Maio/2026"}, {"id": "20170", "student": "EMELYN FRANKLIN BICUDO GUIMARAES", "consultant": "KAIQUE PEREIRA SIQUEIRA", "type": "new", "commission": 50, "date": "06/05/2026", "contract": "INICIAÇÃO INFANTIL PM 12 meses - DCC2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras", "month": "Maio/2026"}, {"id": "20222", "student": "EDGAR NOGUEIRA JEAKEL", "consultant": "KAIQUE PEREIRA SIQUEIRA", "type": "new", "commission": 50, "date": "15/05/2026", "contract": "BEBE I PM 6 meses- DCC2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras", "month": "Maio/2026"}, {"id": "20183", "student": "DOLORES LOVATTO ALVARENGA", "consultant": "LIVIA OLIVEIRA RODRIGUES DOS SANTOS", "type": "new", "commission": 50, "date": "08/05/2026", "contract": "HIDROGINASTICA PM 6 meses - DCC3", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras", "month": "Maio/2026"}, {"id": "20270", "student": "CLARA SANTANA PIMENTA", "consultant": "KAIQUE PEREIRA SIQUEIRA", "type": "new", "commission": 50, "date": "26/05/2026", "contract": "BEBE I P1 - 1 - RELAMPAGO", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras", "month": "Maio/2026"}, {"id": "20155", "student": "CECÍLIA LANIS PATRICIO", "consultant": "KAIQUE PEREIRA SIQUEIRA", "type": "new", "commission": 50, "date": "27/04/2026", "contract": "HIDRO ANTECIPADO 6 MESES- 2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras", "month": "Maio/2026"}, {"id": "20191", "student": "CECÍLIA SILVA DE ANDRADE", "consultant": "ADRIELLY SANTANA SABINO", "type": "new", "commission": 50, "date": "07/05/2026", "contract": "BEBE II PM 12 meses- DCC2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras", "month": "Maio/2026"}, {"id": "20156", "student": "BERNARDO RICARDO RODRIGUES", "consultant": "ADRIELLY SANTANA SABINO", "type": "new", "commission": 50, "date": "29/04/2026", "contract": "ADAPTAÇÃO PM 12 meses - DCC2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras", "month": "Maio/2026"}, {"id": "20144", "student": "BENÍCIO VIEIRA DOS SANTOS PEREIRA", "consultant": "ADRIELLY SANTANA SABINO", "type": "new", "commission": 50, "date": "30/04/2026", "contract": "ADAPTAÇÃO PM 12 meses - DCC2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras", "month": "Maio/2026"}, {"id": "20161", "student": "ANA JÚLIA BARROCA GOMES ARAUJO", "consultant": "ADRIELLY SANTANA SABINO", "type": "new", "commission": 50, "date": "04/05/2026", "contract": "BEBE I PM 12 meses- DCC2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras", "month": "Maio/2026"}, {"id": "20157", "student": "ANA LAURA RODRIGUES AMORIM", "consultant": "ADRIELLY SANTANA SABINO", "type": "new", "commission": 50, "date": "29/04/2026", "contract": "BEBE III PM 6 meses - DCC2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras", "month": "Maio/2026"}, {"id": "20209", "student": "ALICE ROCHA PEDRALHO", "consultant": "KAIQUE PEREIRA SIQUEIRA", "type": "new", "commission": 50, "date": "13/05/2026", "contract": "INICIAÇÃO INFANTIL PM 12 meses - DCC2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras", "month": "Maio/2026"}, {"id": "20194", "student": "AJHULLY ALVES RIBEIRO", "consultant": "ADRIELLY SANTANA SABINO", "type": "new", "commission": 50, "date": "08/05/2026", "contract": "INICIAÇÃO ADULTO PM 6 meses - DCC2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras", "month": "Maio/2026"}, {"id": "20163", "student": "ADRIANA LEAL FERREIRA DA SILA", "consultant": "ADRIELLY SANTANA SABINO", "type": "new", "commission": 50, "date": "06/05/2026", "contract": "HIDROGINASTICA PM 12 meses - DCC2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras", "month": "Maio/2026"}, {"id": "20149", "student": "VANEZ PANETTO BLANDINO", "consultant": "LIVIA OLIVEIRA RODRIGUES DOS SANTOS", "type": "new", "commission": 50, "date": "04/05/2026", "contract": "HIDROGINASTICA PM 12 meses - DCC2", "unit": "republica", "unit_label": "Positiva Acqua República", "month": "Maio/2026"}, {"id": "20188", "student": "THAMYRES FREITAS", "consultant": "MARIA EDUARDA SANTOS LOUSSURDO", "type": "new", "commission": 50, "date": "08/05/2026", "contract": "HIDROGINASTICA PM 6 meses - DCC2", "unit": "republica", "unit_label": "Positiva Acqua República", "month": "Maio/2026"}, {"id": "20148", "student": "ROSILDA MARIA DOS SANTOS SELTICI ROCHA LOPES", "consultant": "MARIA EDUARDA SANTOS LOUSSURDO", "type": "new", "commission": 50, "date": "04/05/2026", "contract": "HIDROGINASTICA PM 12 meses - DCC3", "unit": "republica", "unit_label": "Positiva Acqua República", "month": "Maio/2026"}, {"id": "20239", "student": "RODOLPHO TOREZANI BISNETTO", "consultant": "MARIA EDUARDA SANTOS LOUSSURDO", "type": "new", "commission": 50, "date": "14/05/2026", "contract": "BEBE I & II PM 6 meses - DCC1", "unit": "republica", "unit_label": "Positiva Acqua República", "month": "Maio/2026"}, {"id": "20192", "student": "RANISON GABRIEL FERREIRA GATTI", "consultant": "MARIA EDUARDA SANTOS LOUSSURDO", "type": "new", "commission": 50, "date": "05/05/2026", "contract": "BEBE III PM 12 meses - DCC2", "unit": "republica", "unit_label": "Positiva Acqua República", "month": "Maio/2026"}, {"id": "20168", "student": "ONEIDA TORNERI RANGEL", "consultant": "MARIA EDUARDA SANTOS LOUSSURDO", "type": "new", "commission": 50, "date": "06/05/2026", "contract": "INICIAÇÃO ADULTO PM 6 meses - DCC1", "unit": "republica", "unit_label": "Positiva Acqua República", "month": "Maio/2026"}, {"id": "20240", "student": "OLIVIA ALBERTO TOREZANI", "consultant": "MARIA EDUARDA SANTOS LOUSSURDO", "type": "new", "commission": 50, "date": "14/05/2026", "contract": "BEBE I & II PM 6 meses - DCC1", "unit": "republica", "unit_label": "Positiva Acqua República", "month": "Maio/2026"}, {"id": "20182", "student": "MIGUEL MAIA RANGEL", "consultant": "MARIA EDUARDA SANTOS LOUSSURDO", "type": "new", "commission": 50, "date": "06/05/2026", "contract": "BEBE I & II PM 12 meses - DCC1", "unit": "republica", "unit_label": "Positiva Acqua República", "month": "Maio/2026"}, {"id": "20153", "student": "MARINA FRAISLEBEN DELPUPO", "consultant": "MARIA EDUARDA SANTOS LOUSSURDO", "type": "new", "commission": 50, "date": "29/04/2026", "contract": "BEBE I & II PM 6 meses- DCC2", "unit": "republica", "unit_label": "Positiva Acqua República", "month": "Maio/2026"}, {"id": "20230", "student": "MARIA FLOR SALES GOMES PEYNEAU", "consultant": "LIVIA OLIVEIRA RODRIGUES DOS SANTOS", "type": "new", "commission": 50, "date": "18/05/2026", "contract": "INICIAÇÃO INFANTIL PM 12 meses - DCC2", "unit": "republica", "unit_label": "Positiva Acqua República", "month": "Maio/2026"}, {"id": "20214", "student": "LUCA SPINASSE SALUME", "consultant": "MARIA EDUARDA SANTOS LOUSSURDO", "type": "new", "commission": 50, "date": "12/05/2026", "contract": "BEBE I & II - 2 RELAMPAGO", "unit": "republica", "unit_label": "Positiva Acqua República", "month": "Maio/2026"}, {"id": "20215", "student": "LARA SPINASSE SALUME", "consultant": "MARIA EDUARDA SANTOS LOUSSURDO", "type": "new", "commission": 50, "date": "12/05/2026", "contract": "BEBE I & II - 2 RELAMPAGO", "unit": "republica", "unit_label": "Positiva Acqua República", "month": "Maio/2026"}, {"id": "20181", "student": "JOÃO MIGUEL FADINI ROSA", "consultant": "MARIA EDUARDA SANTOS LOUSSURDO", "type": "new", "commission": 50, "date": "04/05/2026", "contract": "BEBE I & II PM 6 meses- DCC2", "unit": "republica", "unit_label": "Positiva Acqua República", "month": "Maio/2026"}, {"id": "20204", "student": "ISADORA FRANÇA SANTOS", "consultant": "MARIA EDUARDA SANTOS LOUSSURDO", "type": "new", "commission": 50, "date": "05/05/2026", "contract": "BEBE I & II - 2 RELAMPAGO", "unit": "republica", "unit_label": "Positiva Acqua República", "month": "Maio/2026"}, {"id": "20205", "student": "HENRI OGGIONE SPINASSÉ CRUZ", "consultant": "FRANCIELY IGNACIO ELIZIARIO", "type": "new", "commission": 50, "date": "17/03/2026", "contract": "BEBE I & II PM 12 meses- DCC2", "unit": "republica", "unit_label": "Positiva Acqua República", "month": "Maio/2026"}, {"id": "20151", "student": "HELENA REIS DUARTE", "consultant": "ADRIELLY SANTANA SABINO", "type": "new", "commission": 50, "date": "01/05/2026", "contract": "BEBE I & II PM 12 meses- DCC2", "unit": "republica", "unit_label": "Positiva Acqua República", "month": "Maio/2026"}, {"id": "20145", "student": "DANIELI PESSOTTI MENDES", "consultant": "KAIQUE PEREIRA SIQUEIRA", "type": "new", "commission": 50, "date": "15/04/2026", "contract": "INICIAÇÃO ADULTO PM 12 meses - DCC2", "unit": "republica", "unit_label": "Positiva Acqua República", "month": "Maio/2026"}, {"id": "20232", "student": "CONRADO CARVALHO TRABA", "consultant": "MARIA EDUARDA SANTOS LOUSSURDO", "type": "new", "commission": 50, "date": "18/05/2026", "contract": "BEBE I & II PM 6 meses - DCC1", "unit": "republica", "unit_label": "Positiva Acqua República", "month": "Maio/2026"}, {"id": "20236", "student": "CAROLINA MATHIAS LOPES", "consultant": "MARIA EDUARDA SANTOS LOUSSURDO", "type": "new", "commission": 50, "date": "12/05/2026", "contract": "INICIAÇÃO ADULTO RELAMPAGO - 2", "unit": "republica", "unit_label": "Positiva Acqua República", "month": "Maio/2026"}, {"id": "20256", "student": "BIANCA PEREIRA PAZINI", "consultant": "MARIA EDUARDA SANTOS LOUSSURDO", "type": "new", "commission": 50, "date": "19/05/2026", "contract": "BEBE I & II PM 12 meses- DCC2", "unit": "republica", "unit_label": "Positiva Acqua República", "month": "Maio/2026"}, {"id": "20146", "student": "BERNARDO RODRIGUES ABREU", "consultant": "KAIQUE PEREIRA SIQUEIRA", "type": "new", "commission": 50, "date": "06/03/2026", "contract": "ADAPTAÇÃO PM 12 meses - DCC2", "unit": "republica", "unit_label": "Positiva Acqua República", "month": "Maio/2026"}, {"id": "20177", "student": "BERNARDO GABRIEL LUCAS", "consultant": "MARIA EDUARDA SANTOS LOUSSURDO", "type": "new", "commission": 50, "date": "23/04/2026", "contract": "BEBE III PM 12 meses - DCC1", "unit": "republica", "unit_label": "Positiva Acqua República", "month": "Maio/2026"}, {"id": "20225", "student": "BENTO CUSTÓDIO PESSIN", "consultant": "ADRIELLY SANTANA SABINO", "type": "new", "commission": 50, "date": "03/05/2026", "contract": "INICIAÇÃO INFANTIL PM 6 meses - DCC1", "unit": "republica", "unit_label": "Positiva Acqua República", "month": "Maio/2026"}, {"id": "20176", "student": "ANDREIA GALVANI", "consultant": "LIVIA OLIVEIRA RODRIGUES DOS SANTOS", "type": "new", "commission": 50, "date": "28/04/2026", "contract": "INICIAÇÃO ADULTO RELAMPAGO - 2", "unit": "republica", "unit_label": "Positiva Acqua República", "month": "Maio/2026"}, {"id": "20218", "student": "YUMI ALVARENGA FREIRE", "consultant": "LUANA APARECIDA FERNANDES", "type": "new", "commission": 50, "date": "15/05/2026", "contract": "Positiva Kids", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20229", "student": "YUMI ALVARENGA FREIRE", "consultant": "LUANA APARECIDA FERNANDES", "type": "new", "commission": 50, "date": "18/05/2026", "contract": "Positiva Kids", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20252", "student": "YSABELLA BORGES BUENO DA CRUZ", "consultant": "MARIA EDUARDA LOPES FREITAS", "type": "new", "commission": 50, "date": "21/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20196", "student": "WENDY CHAVIER PEREIRA FERNADES", "consultant": "ISABELLY SANTOS MIGUITA", "type": "new", "commission": 50, "date": "12/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20274", "student": "WATSON LENO PASSOS", "consultant": "LUANA APARECIDA FERNANDES", "type": "new", "commission": 50, "date": "27/05/2026", "contract": "MENSAL - 5X NA SEMANA", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20201", "student": "WALACE KADRATZ KLEMZ", "consultant": "MARIA EDUARDA LOPES FREITAS", "type": "new", "commission": 50, "date": "12/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20261", "student": "TAÍS DE OLIVEIRA CARDOSO", "consultant": "LUANA APARECIDA FERNANDES", "type": "new", "commission": 50, "date": "24/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20248", "student": "SUELEM NEVES AZEVEDO", "consultant": "LUANA APARECIDA FERNANDES", "type": "new", "commission": 50, "date": "21/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20160", "student": "STEFANY CRISTINE VARGAS CAETANO NASCIMENTO", "consultant": "LUANA APARECIDA FERNANDES", "type": "new", "commission": 50, "date": "05/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20193", "student": "SANDER DIAS MOTA", "consultant": "LUANA APARECIDA FERNANDES", "type": "new", "commission": 50, "date": "11/05/2026", "contract": "Evolução Positiva - DCC", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20224", "student": "ROSANE GOMES TOMAZ", "consultant": "ISABELLY SANTOS MIGUITA", "type": "new", "commission": 50, "date": "18/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20195", "student": "ROBERTA SABRINE ALVES SILVA", "consultant": "ISABELLY SANTOS MIGUITA", "type": "new", "commission": 50, "date": "12/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20187", "student": "RIGELE APARECIDA DOS SANTOS PEREIRA", "consultant": "ISABELLY SANTOS MIGUITA", "type": "new", "commission": 50, "date": "11/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20228", "student": "RENATO DOS SANTOS FERREIRA", "consultant": "ISABELLY SANTOS MIGUITA", "type": "new", "commission": 50, "date": "18/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20178", "student": "REGISLANE BRITO GOLTARA", "consultant": "LUANA APARECIDA FERNANDES", "type": "new", "commission": 50, "date": "08/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20287", "student": "RAFAEL COUTINHO STEIN", "consultant": "LUANA APARECIDA FERNANDES", "type": "new", "commission": 50, "date": "28/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20275", "student": "PEDRO LUCAS SANTOS LORENZETO", "consultant": "LUANA APARECIDA FERNANDES", "type": "new", "commission": 50, "date": "27/05/2026", "contract": "Evolução Positiva - DCC", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20169", "student": "PALOMA DA CONCEIÇÃO AMARAL", "consultant": "LUANA APARECIDA FERNANDES", "type": "new", "commission": 50, "date": "04/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20282", "student": "NEIDE DE LIMA BANHOS", "consultant": "ISABELLY SANTOS MIGUITA", "type": "new", "commission": 50, "date": "28/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20293", "student": "NATÁLIA BORGES DE OLIVEIRA", "consultant": "LUANA APARECIDA FERNANDES", "type": "new", "commission": 50, "date": "29/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20200", "student": "MOISÉS COSTA LIMA", "consultant": "LUANA APARECIDA FERNANDES", "type": "new", "commission": 50, "date": "12/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20283", "student": "MARIANA MIDORI AKAMINE", "consultant": "LUANA APARECIDA FERNANDES", "type": "new", "commission": 50, "date": "28/05/2026", "contract": "Evolução Positiva - DCC", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20279", "student": "MARIA VITÓRIA RODRIGUES DA SILVA", "consultant": "LUANA APARECIDA FERNANDES", "type": "new", "commission": 50, "date": "27/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20211", "student": "MARIA APARECIDA DE CARVALHO", "consultant": "ISABELLY SANTOS MIGUITA", "type": "new", "commission": 50, "date": "14/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20217", "student": "MARCIELLY GOMES ALVARENGA", "consultant": "LUANA APARECIDA FERNANDES", "type": "new", "commission": 50, "date": "15/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20259", "student": "LUIZ FERNANDO ROSSINI", "consultant": "LUANA APARECIDA FERNANDES", "type": "new", "commission": 50, "date": "24/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20190", "student": "LILIANE DA SILVA RIBEIRO", "consultant": "ISABELLY SANTOS MIGUITA", "type": "new", "commission": 50, "date": "11/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20290", "student": "LETÍCIA SILVA SOUZA FERREIRA", "consultant": "LUANA APARECIDA FERNANDES", "type": "new", "commission": 50, "date": "29/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20285", "student": "KETLHEN REIS FELIX", "consultant": "LUANA APARECIDA FERNANDES", "type": "new", "commission": 50, "date": "28/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20246", "student": "KATIA BATISTA PEREIRA", "consultant": "LUANA APARECIDA FERNANDES", "type": "new", "commission": 50, "date": "21/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20219", "student": "IRIS SANTANA SILVA", "consultant": "LUANA APARECIDA FERNANDES", "type": "new", "commission": 50, "date": "15/05/2026", "contract": "Evolução Positiva - UpSell", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20295", "student": "INGRID ISABELA MENDONCA PAGOTTO", "consultant": "ADRIELLY SANTANA SABINO", "type": "new", "commission": 50, "date": "31/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20227", "student": "HERON VENTURA DE ALMEIDA", "consultant": "ISABELLY SANTOS MIGUITA", "type": "new", "commission": 50, "date": "18/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20180", "student": "HERCULES DE OLIVEIRA TEIXEIRA", "consultant": "LUANA APARECIDA FERNANDES", "type": "new", "commission": 50, "date": "08/05/2026", "contract": "Evolução Positiva - DCC", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20250", "student": "HELLOÁ SILVA NOVAES", "consultant": "MARIA EDUARDA LOPES FREITAS", "type": "new", "commission": 50, "date": "21/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20223", "student": "GUSTAVO CASTRO SPAGNOL", "consultant": "ISABELLY SANTOS MIGUITA", "type": "new", "commission": 50, "date": "18/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20277", "student": "GILBERTO NICOLAU DOS SANTOS", "consultant": "LUANA APARECIDA FERNANDES", "type": "new", "commission": 50, "date": "27/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20276", "student": "GABRIELLA ARNALDO BONOMO LORENZETO", "consultant": "LUANA APARECIDA FERNANDES", "type": "new", "commission": 50, "date": "27/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20185", "student": "GABRIEL DE JESUS", "consultant": "MARIA EDUARDA LOPES FREITAS", "type": "new", "commission": 50, "date": "09/05/2026", "contract": "Evolução Positiva - DCC", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20226", "student": "DELBA MIRANDA", "consultant": "LUANA APARECIDA FERNANDES", "type": "new", "commission": 50, "date": "18/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20210", "student": "CLEOMARA GONSALVES", "consultant": "ISABELLY SANTOS MIGUITA", "type": "new", "commission": 50, "date": "11/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20251", "student": "CAUAN VITOR SILVA DE JESUS", "consultant": "MARIA EDUARDA LOPES FREITAS", "type": "new", "commission": 50, "date": "21/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20271", "student": "BIANCAH COUTINHO BRAZ", "consultant": "LUANA APARECIDA FERNANDES", "type": "new", "commission": 50, "date": "26/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20162", "student": "ASAFI CORREA", "consultant": "MARIA EDUARDA LOPES FREITAS", "type": "new", "commission": 50, "date": "05/05/2026", "contract": "Positiva Kids", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20147", "student": "ALVARO RIBEIRO", "consultant": "LUANA APARECIDA FERNANDES", "type": "new", "commission": 50, "date": "06/03/2026", "contract": "Evolução Positiva - DCC", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20202", "student": "ALICE CORREA", "consultant": "MARIA EDUARDA LOPES FREITAS", "type": "new", "commission": 50, "date": "12/05/2026", "contract": "Evolução Positiva - UpSell", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20262", "student": "ALAN CARDOSO SANTOS DE OLIVEIRA", "consultant": "LUANA APARECIDA FERNANDES", "type": "new", "commission": 50, "date": "24/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20159", "student": ".ADALUCIA PEREIRA", "consultant": "MARIA EDUARDA LOPES FREITAS", "type": "new", "commission": 50, "date": "05/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "16680", "student": "ANA JÚLIA FRANÇA MARQUES", "consultant": "ADRIELLY SANTANA SABINO", "type": "renewal", "commission": 25, "date": "18/05/2026", "contract": "BEBE II PM 12 meses- DCC2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras", "month": "Maio/2026"}, {"id": "6926", "student": "LENIR GUSMÃO RIDOLFE", "consultant": "ADRIELLY SANTANA SABINO", "type": "renewal", "commission": 25, "date": "15/05/2026", "contract": "HIDROGINASTICA PM 6 meses - DCC3", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras", "month": "Maio/2026"}, {"id": "14505", "student": "LILIANA CAMPOS CONRADO GONÇALVES", "consultant": "ADRIELLY SANTANA SABINO", "type": "renewal", "commission": 25, "date": "18/05/2026", "contract": "INICIAÇÃO ADULTO PM 12 meses - DCC2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras", "month": "Maio/2026"}, {"id": "16216", "student": "ZELIA PAGEL VELOZO GARCIA", "consultant": "ADRIELLY SANTANA SABINO", "type": "renewal", "commission": 25, "date": "25/05/2026", "contract": "INICIAÇÃO ADULTO PM 12 meses - DCC2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras", "month": "Maio/2026"}, {"id": "15983", "student": "NICOLAS DA SILVEIRA ROCHA", "consultant": "ADRIELLY SANTANA SABINO", "type": "renewal", "commission": 25, "date": "07/05/2026", "contract": "INICIAÇÃO ADULTO PM 6 meses - DCC2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras", "month": "Maio/2026"}, {"id": "18205", "student": "DOUGLAS PÊGO GAMA ROSA", "consultant": "ADRIELLY SANTANA SABINO", "type": "renewal", "commission": 25, "date": "11/05/2026", "contract": "INICIAÇÃO ADULTO RELAMPAGO - 2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras", "month": "Maio/2026"}, {"id": "6767", "student": "ARTUR MOSCHEN RANA", "consultant": "ADRIELLY SANTANA SABINO", "type": "renewal", "commission": 25, "date": "06/05/2026", "contract": "INICIAÇÃO INFANTIL PM 12 meses - DCC2", "unit": "laranjeiras", "unit_label": "Positiva Acqua Laranjeiras", "month": "Maio/2026"}, {"id": "17984", "student": "RAFAELA CAPUCHO AMARAL", "consultant": "LIVIA OLIVEIRA RODRIGUES DOS SANTOS", "type": "renewal", "commission": 25, "date": "15/05/2026", "contract": "ADAPTAÇÃO PM 12 meses - DCC2", "unit": "republica", "unit_label": "Positiva Acqua República", "month": "Maio/2026"}, {"id": "18994", "student": "ISABELLA CARVALHO SANTOS EDUARDO", "consultant": "MARIA EDUARDA SANTOS LOUSSURDO", "type": "renewal", "commission": 25, "date": "19/05/2026", "contract": "BEBE III PM 12 meses - DCC2", "unit": "republica", "unit_label": "Positiva Acqua República", "month": "Maio/2026"}, {"id": "18993", "student": "MARIANA CARVALHO DE OLIVEIRA MAIA", "consultant": "MARIA EDUARDA SANTOS LOUSSURDO", "type": "renewal", "commission": 25, "date": "19/05/2026", "contract": "INF. APERF. 1, 2 e 3 PM 12 meses-  DCC2", "unit": "republica", "unit_label": "Positiva Acqua República", "month": "Maio/2026"}, {"id": "1673", "student": "GLEDISON GOMES FREIRE", "consultant": "LUANA APARECIDA FERNANDES", "type": "renewal", "commission": 25, "date": "15/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "4265", "student": "ALESSANDRA ROSA", "consultant": "Kimberlly Castro Rangel", "type": "renewal", "commission": 25, "date": "07/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "4386", "student": "MARIANA WANDERMUREN ARAUJO", "consultant": "Kimberlly Castro Rangel", "type": "renewal", "commission": 25, "date": "07/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "8364", "student": "LIVIA BARBOSA DA SILVA", "consultant": "ISABELLY SANTOS MIGUITA", "type": "renewal", "commission": 25, "date": "27/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "8687", "student": "FABIOLA DA COSTA JULIAO", "consultant": "Kimberlly Castro Rangel", "type": "renewal", "commission": 25, "date": "08/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "13464", "student": "SIRLENE RIBEIRO DE OLIVEIRA", "consultant": "LUANA APARECIDA FERNANDES", "type": "renewal", "commission": 25, "date": "25/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "16384", "student": "SELMA SANTOS OLIVEIRA", "consultant": "JESSICA KETULLIN CASTRO RANGEL", "type": "renewal", "commission": 25, "date": "08/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "16465", "student": "CARLOS MAGNO GOMES LIMA", "consultant": "LUANA APARECIDA FERNANDES", "type": "renewal", "commission": 25, "date": "27/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "16495", "student": "MARIA PAULA ANDRADE", "consultant": "Kimberlly Castro Rangel", "type": "renewal", "commission": 25, "date": "27/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "16496", "student": "RAFAEL FERNANDES AMORIM", "consultant": "JESSICA KETULLIN CASTRO RANGEL", "type": "renewal", "commission": 25, "date": "27/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "16540", "student": "ADMIEL ARAÚJO DOS REIS", "consultant": "Kimberlly Castro Rangel", "type": "renewal", "commission": 25, "date": "29/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "16933", "student": "FRANCYS MATOS ALVES DE SOUZA", "consultant": "ISABELLY SANTOS MIGUITA", "type": "renewal", "commission": 25, "date": "30/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "17286", "student": "ANA CLARA PASSOS STOCK", "consultant": "Kimberlly Castro Rangel", "type": "renewal", "commission": 25, "date": "29/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "19003", "student": "AKKILA MARIA ABRANCHES CUSTÓDIO", "consultant": "KAIQUE PEREIRA SIQUEIRA", "type": "renewal", "commission": 25, "date": "11/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "19190", "student": "JONNATHAN GOMES DE OLIVEIRA", "consultant": "LUANA APARECIDA FERNANDES", "type": "renewal", "commission": 25, "date": "12/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "19648", "student": "RAYSSA VITORIA PINTO DO NASCIMENTO", "consultant": "ISABELLY SANTOS MIGUITA", "type": "renewal", "commission": 25, "date": "27/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "19872", "student": "JOSILENE CORRENTE", "consultant": "MARIA EDUARDA LOPES FREITAS", "type": "renewal", "commission": 25, "date": "13/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "20274", "student": "WATSON LENO PASSOS", "consultant": "LUANA APARECIDA FERNANDES", "type": "renewal", "commission": 25, "date": "27/05/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "1117", "student": "FRANCISCO QUINTAS NETO", "consultant": "ISABELLY SANTOS MIGUITA", "type": "renewal", "commission": 25, "date": "22/05/2026", "contract": "Evolução Positiva - DCC", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "1118", "student": "ZINA HELENA ÁVILA DE ABREU QUINTAS", "consultant": "ISABELLY SANTOS MIGUITA", "type": "renewal", "commission": 25, "date": "22/05/2026", "contract": "Evolução Positiva - DCC", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "1683", "student": "VANESSA SILVA DOS SANTOS", "consultant": "ISABELLY SANTOS MIGUITA", "type": "renewal", "commission": 25, "date": "05/05/2026", "contract": "Evolução Positiva - DCC", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "3342", "student": "LUANA FRAGA SIRQUEIRA", "consultant": "ISABELLY SANTOS MIGUITA", "type": "renewal", "commission": 25, "date": "04/05/2026", "contract": "Evolução Positiva - DCC", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "6639", "student": "OTAVIO AUGUSTO COSTA SANTOS", "consultant": "ISABELLY SANTOS MIGUITA", "type": "renewal", "commission": 25, "date": "30/05/2026", "contract": "Evolução Positiva - DCC", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "13440", "student": "DAVI RIQUIERI MATOS", "consultant": "Kimberlly Castro Rangel", "type": "renewal", "commission": 25, "date": "11/05/2026", "contract": "Evolução Positiva - DCC", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "18127", "student": "RAMON VILELA BAZONI DA SILVA", "consultant": "LUANA APARECIDA FERNANDES", "type": "renewal", "commission": 25, "date": "14/05/2026", "contract": "Evolução Positiva - DCC", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "18128", "student": "LAÍSA RIBEIOR MARTINS DE FREITAS BAZANI", "consultant": "LUANA APARECIDA FERNANDES", "type": "renewal", "commission": 25, "date": "14/05/2026", "contract": "Evolução Positiva - DCC", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "11201", "student": "WENDREL LUCAS FAZOLO", "consultant": "ISABELLY SANTOS MIGUITA", "type": "renewal", "commission": 25, "date": "08/05/2026", "contract": "Evolução Positiva - UpSell", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "11202", "student": "LARA CANDIDA SANT ANNA COELHO", "consultant": "ISABELLY SANTOS MIGUITA", "type": "renewal", "commission": 25, "date": "08/05/2026", "contract": "Evolução Positiva - UpSell", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "567", "student": "GESSICA G. FONSECA", "consultant": "Kimberlly Castro Rangel", "type": "renewal", "commission": 25, "date": "08/05/2026", "contract": "Evolução Wellhub", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "1301", "student": "MARIA APARECIDA FARIAS DA CONCEIÇÃO", "consultant": "MARIA EDUARDA LOPES FREITAS", "type": "renewal", "commission": 25, "date": "19/05/2026", "contract": "Evolução Wellhub", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "3573", "student": "FATIMA MARIA", "consultant": "ISABELLY SANTOS MIGUITA", "type": "renewal", "commission": 25, "date": "12/05/2026", "contract": "Evolução Wellhub", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "8609", "student": "NATANIA ANDREATTA RIBEIRO QUIRINO", "consultant": "DIEGO NETTO DE OLIVEIRA", "type": "renewal", "commission": 25, "date": "18/05/2026", "contract": "Evolução Wellhub", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "15369", "student": "AUDARÍ DE DEUS JÚNIOR", "consultant": "Kimberlly Castro Rangel", "type": "renewal", "commission": 25, "date": "11/05/2026", "contract": "GYM - 123,90 - Semestral", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}, {"id": "18826", "student": "VANESSA DA ROCHA SOUZA", "consultant": "KAIQUE PEREIRA SIQUEIRA", "type": "renewal", "commission": 25, "date": "19/05/2026", "contract": "GYM PM 12 meses (Academia) - DCC 139,90", "unit": "club", "unit_label": "Positiva Club", "month": "Maio/2026"}];
-const MONTH      = "Maio/2026";
-const UNIT_KEYS  = ["club", "laranjeiras", "republica"];
-const UNIT_LABELS= {"laranjeiras": "Positiva Acqua Laranjeiras", "republica": "Positiva Acqua República", "club": "Positiva Club"};
-const ALL_MONTHS = ["Maio/2026"];
-
-// ══════════════════════════════════════════════
-//  STORAGE HELPERS
-// ══════════════════════════════════════════════
-const USERS_KEY    = 'positiva_users';
-const USERS_VER    = 'positiva_users_ver';
-const USERS_VER_ID = 'v2'; // incrementar aqui força regeneração dos logins
-const SESSION_KEY  = 'positiva_session';
-const DISPUTES_KEY  = 'positiva_disputes';
-const OVERRIDES_KEY = 'positiva_overrides_' + MONTH.replace('/','_');
-
-function loadUsers() {
-  const savedVer = localStorage.getItem(USERS_VER);
-  const saved    = localStorage.getItem(USERS_KEY);
-
-  // Se versão bate e já tem usuários salvos, usa o salvo
-  if (saved && savedVer === USERS_VER_ID) {
-    const parsed = JSON.parse(saved);
-    // Garante que o coordenador sempre existe
-    if (!parsed.coordenador) parsed.coordenador = { name:'Coordenador', role:'coordinator', pw:'positiva2026' };
-    return parsed;
-  }
-
-  // Versão nova ou sem dados: regenera logins a partir dos dados brutos
-  const consultants = [...new Set(RAW_SALES.map(s => s.consultant))].filter(Boolean);
-  const users = {};
-
-  // Preserva senhas customizadas se existirem
-  const oldUsers = saved ? JSON.parse(saved) : {};
-
-  // Coordenador
-  users['coordenador'] = oldUsers['coordenador'] || { name:'Coordenador', role:'coordinator', pw:'positiva2026' };
-
-  consultants.forEach(name => {
-    const parts = name.trim().split(/\s+/);
-    const login = (parts[0] + (parts.length > 1 ? parts[parts.length - 1] : ''))
-      .toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
-    // Busca senha antiga pelo nome completo para não perder
-    const oldEntry = Object.values(oldUsers).find(u => u.name === name);
-    users[login] = { name, role:'consultant', pw: oldEntry ? oldEntry.pw : 'positiva123' };
-  });
-
-  saveUsers(users);
-  localStorage.setItem(USERS_VER, USERS_VER_ID);
-  return users;
-}
-
-function saveUsers(u) { localStorage.setItem(USERS_KEY, JSON.stringify(u)); }
-
-function loadDisputes() {
-  const saved = localStorage.getItem(DISPUTES_KEY);
-  return saved ? JSON.parse(saved) : [];
-}
-function saveDisputesLocal(d) {
-  localStorage.setItem(DISPUTES_KEY, JSON.stringify(d));
-}
-function loadOverrides() {
-  const saved = localStorage.getItem(OVERRIDES_KEY);
-  return saved ? JSON.parse(saved) : { unassigned: [], added: [] };
-}
-function saveOverridesLocal(o) {
-  localStorage.setItem(OVERRIDES_KEY, JSON.stringify(o));
-}
+const RAW_SALES  = [{"student": "YAN SIMAN DE SOUZA", "type": "new", "date": "25/06/2026", "contract": "Seja Positiva - DCC", "unit": "club", "unit_label": "Positiva Club", "month": "Junho/2026", "id": "20370", "needs_review": false, "line_id": "20370-full", "consultant": "MARIA EDUARDA LOPES FREITAS", "role": "completo", "commission": 20}, {"student": "WEVERSON VIEIRA BAIOCO", "type": "new", "date": "08/06/2026", "contract": "Seja Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Junho/2026", "id": "20320", "needs_review": false, "line_id": "20320-full", "consultant": "MARIA EDUARDA LOPES FREITAS", "role": "completo", "commission": 20}, {"student": "VALQUIRA ROSSI FALCAO", "type": "new", "date": "09/06/2026", "contract": "Seja Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Junho/2026", "id": "20326", "needs_review": false, "line_id": "20326-full", "consultant": "MARIA EDUARDA LOPES FREITAS", "role": "completo", "commission": 20}, {"student": "THAYNARA ZOBINA", "type": "new", "date": "23/06/2026", "contract": "Domínio Positiva - DCC", "unit": "club", "unit_label": "Positiva Club", "month": "Junho/2026", "id": "20382", "needs_review": false, "line_id": "20382-full", "consultant": "MARIA EDUARDA LOPES FREITAS", "role": "completo", "commission": 40}, {"student": "THAINA VITAL DA SILVA", "type": "new", "date": "15/06/2026", "contract": "Dominio Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Junho/2026", "id": "20334", "needs_review": false, "line_id": "20334-full", "consultant": "ISABELLY SANTOS MIGUITA", "role": "completo", "commission": 40}, {"student": "RODRIGO CORRÊA GALLO", "type": "new", "date": "15/06/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Junho/2026", "id": "20336", "needs_review": false, "line_id": "20336-full", "consultant": "ISABELLY SANTOS MIGUITA", "role": "completo", "commission": 30}, {"student": "RAISSA FONSECA", "type": "new", "date": "10/06/2026", "contract": "Domínio Positiva - DCC", "unit": "club", "unit_label": "Positiva Club", "month": "Junho/2026", "id": "20329", "needs_review": false, "line_id": "20329-full", "consultant": "MARIA EDUARDA LOPES FREITAS", "role": "completo", "commission": 40}, {"student": "RAFAELA TONACIO MARTINS", "type": "new", "date": "08/06/2026", "contract": "Seja Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Junho/2026", "id": "20315", "needs_review": false, "line_id": "20315-full", "consultant": "MARIA EDUARDA LOPES FREITAS", "role": "completo", "commission": 20}, {"student": "MATHEUS INACIO", "type": "new", "date": "26/06/2026", "contract": "Seja Positiva Anual Antecipado R$116", "unit": "club", "unit_label": "Positiva Club", "month": "Junho/2026", "id": "20377", "needs_review": true, "line_id": "20377-full", "consultant": "MARIA EDUARDA LOPES FREITAS", "role": "completo", "commission": 50}, {"student": "MARLY BARCELLOS", "type": "new", "date": "18/06/2026", "contract": "Seja Positiva - DCC", "unit": "club", "unit_label": "Positiva Club", "month": "Junho/2026", "id": "20354", "needs_review": false, "line_id": "20354-cad", "consultant": "MARIA EDUARDA LOPES FREITAS", "role": "cadastro", "commission": 14.0}, {"student": "MARLY BARCELLOS", "type": "new", "date": "18/06/2026", "contract": "Seja Positiva - DCC", "unit": "club", "unit_label": "Positiva Club", "month": "Junho/2026", "id": "20354", "needs_review": false, "line_id": "20354-conv", "consultant": "ISABELLY SANTOS MIGUITA", "role": "conversao", "commission": 6.0}, {"student": "MARIA JULIA FERREIRA BRANDÃO", "type": "new", "date": "16/06/2026", "contract": "Dominio Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Junho/2026", "id": "20340", "needs_review": false, "line_id": "20340-full", "consultant": "ISABELLY SANTOS MIGUITA", "role": "completo", "commission": 40}, {"student": "LUCAS RODRIGUES DA CRUZ", "type": "new", "date": "19/06/2026", "contract": "Domínio Positiva - DCC", "unit": "club", "unit_label": "Positiva Club", "month": "Junho/2026", "id": "20355", "needs_review": false, "line_id": "20355-full", "consultant": "ISABELLY SANTOS MIGUITA", "role": "completo", "commission": 40}, {"student": "GUSTAVO BRAMBILA", "type": "new", "date": "09/06/2026", "contract": "Seja Positiva - DCC", "unit": "club", "unit_label": "Positiva Club", "month": "Junho/2026", "id": "20322", "needs_review": false, "line_id": "20322-full", "consultant": "MARIA EDUARDA LOPES FREITAS", "role": "completo", "commission": 20}, {"student": "GISELLE OLIVEIRA DE PAULA", "type": "new", "date": "08/06/2026", "contract": "Seja Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Junho/2026", "id": "20319", "needs_review": false, "line_id": "20319-full", "consultant": "MARIA EDUARDA LOPES FREITAS", "role": "completo", "commission": 20}, {"student": "GIOVANNA MULLER", "type": "new", "date": "15/06/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Junho/2026", "id": "20332", "needs_review": false, "line_id": "20332-full", "consultant": "ISABELLY SANTOS MIGUITA", "role": "completo", "commission": 30}, {"student": "CAMILO COSTA DE QUEIROZ", "type": "new", "date": "05/06/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Junho/2026", "id": "20311", "needs_review": false, "line_id": "20311-full", "consultant": "LUANA APARECIDA FERNANDES", "role": "completo", "commission": 30}, {"student": "BRUNO DOS SANTOS", "type": "new", "date": "16/06/2026", "contract": "Dominio Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Junho/2026", "id": "20339", "needs_review": false, "line_id": "20339-full", "consultant": "ISABELLY SANTOS MIGUITA", "role": "completo", "commission": 40}, {"student": "ANA CLARA LOPES", "type": "new", "date": "25/06/2026", "contract": "Seja Positiva - DCC", "unit": "club", "unit_label": "Positiva Club", "month": "Junho/2026", "id": "20371", "needs_review": false, "line_id": "20371-full", "consultant": "MARIA EDUARDA LOPES FREITAS", "role": "completo", "commission": 20}, {"student": "ALESANDRA MOSCHEN", "type": "new", "date": "16/06/2026", "contract": "Seja Positiva - DCC", "unit": "club", "unit_label": "Positiva Club", "month": "Junho/2026", "id": "20351", "needs_review": false, "line_id": "20351-full", "consultant": "MARIA EDUARDA LOPES FREITAS", "role": "completo", "commission": 20}, {"id": "19396", "line_id": "19396-ren", "student": "BRENDA RODRIGUES NUNES", "consultant": "ISABELLY SANTOS MIGUITA", "type": "renewal", "role": "consultor", "commission": 20, "needs_review": false, "date": "15/06/2026", "contract": "Dominio Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Junho/2026"}, {"id": "5593", "line_id": "5593-ren", "student": "GABRIEL GOMES AVELINO DE PAULA FELIPE", "consultant": "MARIA EDUARDA LOPES FREITAS", "type": "renewal", "role": "consultor", "commission": 20, "needs_review": false, "date": "13/06/2026", "contract": "Dominio Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Junho/2026"}, {"id": "9954", "line_id": "9954-ren", "student": "NOEMY VEIGA", "consultant": "ISABELLY SANTOS MIGUITA", "type": "renewal", "role": "consultor", "commission": 20, "needs_review": false, "date": "26/06/2026", "contract": "Domínio Positiva - DCC", "unit": "club", "unit_label": "Positiva Club", "month": "Junho/2026"}, {"id": "9976", "line_id": "9976-ren", "student": "MIKAILA BRUZZI", "consultant": "DIEGO NETTO DE OLIVEIRA", "type": "renewal", "role": "consultor", "commission": 20, "needs_review": false, "date": "09/06/2026", "contract": "Domínio Positiva - DCC", "unit": "club", "unit_label": "Positiva Club", "month": "Junho/2026"}, {"id": "17979", "line_id": "17979-ren", "student": "SABRINA SANTOS BITTI DE OLIVEIRA", "consultant": "ISABELLY SANTOS MIGUITA", "type": "renewal", "role": "consultor", "commission": 20, "needs_review": false, "date": "10/06/2026", "contract": "Domínio Positiva - DCC", "unit": "club", "unit_label": "Positiva Club", "month": "Junho/2026"}, {"id": "6601", "line_id": "6601-ren", "student": "THAIANE FERREIRA DE OLIVEIRA", "consultant": "MARIA EDUARDA LOPES FREITAS", "type": "renewal", "role": "consultor", "commission": 20, "needs_review": false, "date": "12/06/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Junho/2026"}, {"id": "18885", "line_id": "18885-ren", "student": "DIOGO SPERANDIO", "consultant": "JESSICA KETULLIN CASTRO RANGEL", "type": "renewal", "role": "consultor", "commission": 20, "needs_review": false, "date": "04/06/2026", "contract": "Evolução Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Junho/2026"}, {"id": "7585", "line_id": "7585-ren", "student": "ANDRESSA TEIXEIRA DAS NEVES RODRIGUES", "consultant": "Kimberlly Castro Rangel", "type": "renewal", "role": "consultor", "commission": 20, "needs_review": false, "date": "08/06/2026", "contract": "Recreio Kids", "unit": "club", "unit_label": "Positiva Club", "month": "Junho/2026"}, {"id": "3068", "line_id": "3068-ren", "student": "NAIR RIBEIRO TOPFER", "consultant": "JESSICA KETULLIN CASTRO RANGEL", "type": "renewal", "role": "consultor", "commission": 20, "needs_review": false, "date": "08/06/2026", "contract": "Seja Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Junho/2026"}, {"id": "13689", "line_id": "13689-ren", "student": "FABIANA DO SOCORRO SILVA LIMA", "consultant": "ISABELLY SANTOS MIGUITA", "type": "renewal", "role": "consultor", "commission": 20, "needs_review": false, "date": "15/06/2026", "contract": "Seja Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Junho/2026"}, {"id": "16780", "line_id": "16780-ren", "student": "VINICIUS DA SILVA DE OLIVEIRA", "consultant": "JESSICA KETULLIN CASTRO RANGEL", "type": "renewal", "role": "consultor", "commission": 20, "needs_review": false, "date": "09/06/2026", "contract": "Seja Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Junho/2026"}, {"id": "265", "line_id": "265-ren", "student": "EDILEIDE R. DAMASCENO", "consultant": "JESSICA KETULLIN CASTRO RANGEL", "type": "renewal", "role": "consultor", "commission": 20, "needs_review": false, "date": "08/06/2026", "contract": "Seja Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Junho/2026"}, {"id": "3038", "line_id": "3038-ren", "student": "DANIELLE CARVALHO OLIVEIRA", "consultant": "ISABELLY SANTOS MIGUITA", "type": "renewal", "role": "consultor", "commission": 20, "needs_review": false, "date": "12/06/2026", "contract": "Seja Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Junho/2026"}, {"id": "7585", "line_id": "7585-ren", "student": "ANDRESSA TEIXEIRA DAS NEVES RODRIGUES", "consultant": "Kimberlly Castro Rangel", "type": "renewal", "role": "consultor", "commission": 20, "needs_review": false, "date": "08/06/2026", "contract": "Seja Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Junho/2026"}, {"id": "13561", "line_id": "13561-ren", "student": "FANI DE JESUS GOMES", "consultant": "MARIA EDUARDA LOPES FREITAS", "type": "renewal", "role": "consultor", "commission": 20, "needs_review": false, "date": "09/06/2026", "contract": "Seja Positiva - COMUM", "unit": "club", "unit_label": "Positiva Club", "month": "Junho/2026"}, {"id": "18945", "line_id": "18945-ren", "student": "MARIANA ZEFERINO DAUD", "consultant": "MARIA EDUARDA LOPES FREITAS", "type": "renewal", "role": "consultor", "commission": 20, "needs_review": false, "date": "19/06/2026", "contract": "Seja Positiva - DCC", "unit": "club", "unit_label": "Positiva Club", "month": "Junho/2026"}, {"id": "15960", "line_id": "15960-ren", "student": "JAILSON COSTA", "consultant": "ISABELLY SANTOS MIGUITA", "type": "renewal", "role": "consultor", "commission": 20, "needs_review": false, "date": "11/06/2026", "contract": "Seja Positiva - DCC", "unit": "club", "unit_label": "Positiva Club", "month": "Junho/2026"}, {"id": "775", "line_id": "775-ren", "student": "ELIA PEREIRA AMORIN DEL CARO", "consultant": "MARIA EDUARDA LOPES FREITAS", "type": "renewal", "role": "consultor", "commission": 20, "needs_review": false, "date": "09/06/2026", "contract": "Seja Positiva - DCC", "unit": "club", "unit_label": "Positiva Club", "month": "Junho/2026"}];
+const MONTH      = "Junho/2026";
+const UNIT_KEYS  = ["club"];
+const UNIT_LABELS= {"club": "Positiva Club"};
+const ALL_MONTHS = ["Junho/2026"];
+const DEFAULT_COORD_HASH      = "bc0ec9409ecd1ee3839dead6cee8ad15ab1c1968943141dbde0541ea9460a605";
+const DEFAULT_CONSULTANT_HASH = "6b964c686edd6f1d1f19b4e102d609817f9ed086694ba2be72c967749925e9c0";
 
 // ══════════════════════════════════════════════
 //  DISPLAY NAME HELPER
@@ -750,6 +696,66 @@ function shortName(fullName) {
   const last  = parts[parts.length - 1][0] + parts[parts.length - 1].slice(1).toLowerCase();
   return first + ' ' + last;
 }
+
+// ══════════════════════════════════════════════
+//  STORAGE HELPERS
+// ══════════════════════════════════════════════
+const USERS_KEY     = 'positiva_users';
+const USERS_VER     = 'positiva_users_ver';
+const USERS_VER_ID  = 'v4'; // incrementar aqui força regeneração dos logins
+const SESSION_KEY   = 'positiva_session';
+const DISPUTES_KEY  = 'positiva_disputes';
+const OVERRIDES_KEY = 'positiva_overrides_' + MONTH.replace('/','_');
+
+// Senhas nunca ficam em texto puro no HTML — só o hash (SHA-256 + sal fixo) é armazenado/comparado.
+async function hashPw(pw) {
+  const enc = new TextEncoder().encode('positiva-salt-2026:' + pw);
+  const buf = await crypto.subtle.digest('SHA-256', enc);
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+async function loadUsers() {
+  const savedVer = localStorage.getItem(USERS_VER);
+  const saved    = localStorage.getItem(USERS_KEY);
+
+  if (saved && savedVer === USERS_VER_ID) {
+    const parsed = JSON.parse(saved);
+    if (!parsed.coordenador) parsed.coordenador = { name:'Coordenador', role:'coordinator', pw: DEFAULT_COORD_HASH };
+    return parsed;
+  }
+
+  // Versão nova ou sem dados: regenera logins a partir dos dados brutos, preservando senhas customizadas
+  const consultants = [...new Set(RAW_SALES.map(s => s.consultant))].filter(Boolean);
+  const oldUsers = saved ? JSON.parse(saved) : {};
+  const users = {};
+  users['coordenador'] = oldUsers['coordenador'] || { name:'Coordenador', role:'coordinator', pw: DEFAULT_COORD_HASH };
+
+  for (const name of consultants) {
+    const parts = name.trim().split(/\s+/);
+    const login = (parts[0] + (parts.length > 1 ? parts[parts.length - 1] : ''))
+      .toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+    const oldEntry = Object.values(oldUsers).find(u => u.name === name);
+    users[login] = { name, role:'consultant', pw: oldEntry ? oldEntry.pw : DEFAULT_CONSULTANT_HASH };
+  }
+
+  saveUsers(users);
+  localStorage.setItem(USERS_VER, USERS_VER_ID);
+  return users;
+}
+
+function saveUsers(u) { localStorage.setItem(USERS_KEY, JSON.stringify(u)); }
+
+function loadDisputes() {
+  const saved = localStorage.getItem(DISPUTES_KEY);
+  return saved ? JSON.parse(saved) : [];
+}
+function saveDisputesLocal(d) { localStorage.setItem(DISPUTES_KEY, JSON.stringify(d)); }
+
+function loadOverrides() {
+  const saved = localStorage.getItem(OVERRIDES_KEY);
+  return saved ? JSON.parse(saved) : { unassigned: [], added: [] };
+}
+function saveOverridesLocal(o) { localStorage.setItem(OVERRIDES_KEY, JSON.stringify(o)); }
 
 // ══════════════════════════════════════════════
 //  STATE
@@ -773,12 +779,12 @@ let chartCmp2 = null;
 // ══════════════════════════════════════════════
 //  AUTH
 // ══════════════════════════════════════════════
-function doLogin() {
-  users = loadUsers();
+async function doLogin() {
+  users = await loadUsers();
   const login = document.getElementById('inp-user').value.trim().toLowerCase();
   const pass  = document.getElementById('inp-pass').value;
   const user  = users[login];
-  if (!user || user.pw !== pass) {
+  if (!user || user.pw !== await hashPw(pass)) {
     document.getElementById('login-error').style.display = 'block';
     return;
   }
@@ -801,7 +807,7 @@ document.getElementById('inp-pass').addEventListener('keydown', e => { if(e.key=
 //  BOOT APP
 // ══════════════════════════════════════════════
 async function bootApp() {
-  users = loadUsers();
+  users = await loadUsers();
 
   // Mostra app imediatamente com dados locais
   document.getElementById('login-screen').style.display = 'none';
@@ -811,7 +817,6 @@ async function bootApp() {
   document.getElementById('hdr-role').textContent  = session.role === 'coordinator' ? 'Coordenador' : 'Consultor';
   document.getElementById('hdr-avatar').textContent = session.name[0];
 
-  // Mostra dados locais imediatamente
   disputes = loadDisputes();
   buildTabs();
   buildSectionNav();
@@ -838,7 +843,6 @@ function buildTabs() {
   bar.innerHTML = '';
 
   if (session.role === 'coordinator') {
-    // Aba "Todas as Unidades" primeiro
     const allBtn = document.createElement('button');
     allBtn.className = 'tab-btn active';
     allBtn.textContent = '🏢 Todas as Unidades';
@@ -852,7 +856,7 @@ function buildTabs() {
       btn.onclick = () => switchUnit(uk, btn);
       bar.appendChild(btn);
     });
-    activeUnit = null; // começa com todas as unidades
+    activeUnit = null;
   } else {
     const btn = document.createElement('button');
     btn.className = 'tab-btn active';
@@ -918,7 +922,6 @@ function buildSectionNav() {
     btn.onclick = () => switchSection(s.id);
     nav.appendChild(btn);
   });
-
 }
 
 function sectionLabel(id) {
@@ -943,12 +946,12 @@ function getFilteredSales(monthOverride, opts) {
   const overrides = loadOverrides();
   // Apply dispute transfers
   disputes.filter(d => d.status === 'resolved' && d.action === 'transfer').forEach(d => {
-    const s = sales.find(x => x.id === d.saleId && x.unit === d.unit);
+    const s = sales.find(x => x.line_id === d.saleId && x.unit === d.unit);
     if (s) s.consultant = d.claimant;
   });
   // Apply unassignments
   overrides.unassigned.forEach(({id, unit}) => {
-    const s = sales.find(x => x.id === id && x.unit === unit);
+    const s = sales.find(x => x.line_id === id && x.unit === unit);
     if (s) s.consultant = '';
   });
   // Include manually added sales
@@ -973,7 +976,24 @@ function getConsultants(sales) {
 }
 
 function calcCommission(sales) {
-  return sales.reduce((a, s) => a + s.commission, 0);
+  return Math.round(sales.reduce((a, s) => a + s.commission, 0) * 100) / 100;
+}
+
+function uniqueTypeCount(sales, type) {
+  return new Set(sales.filter(s=>s.type===type).map(s=>s.id)).size;
+}
+
+function uniqueSaleCount(sales) {
+  return new Set(sales.map(s=>s.type+':'+s.id)).size;
+}
+
+function money(v) {
+  v = Math.round(v * 100) / 100;
+  return Number.isInteger(v) ? String(v) : v.toFixed(2).replace('.', ',');
+}
+
+function roleLabel(s) {
+  return {cadastro:'Cadastro (70%)', conversao:'Conversão (30%)', completo:'Completo (100%)'}[s.role] || '';
 }
 
 // ══════════════════════════════════════════════
@@ -1025,25 +1045,25 @@ function renderOverview(allSales) {
         <div class="divider"></div>
         <div class="mh-item"><div class="mh-val">${myRen}</div><div class="mh-lbl">Rematrículas</div></div>
         <div class="divider"></div>
-        <div class="mh-item"><div class="mh-val">R$&nbsp;${myComm}</div><div class="mh-lbl">Minha Bônus</div></div>
+        <div class="mh-item"><div class="mh-val">R$&nbsp;${money(myComm)}</div><div class="mh-lbl">Minha Comissão</div></div>
       </div>
       <p class="page-title">Meu Desempenho</p>
       <p class="page-sub">${MONTH} · Unidade(s): ${myUnits}</p>
       <div class="kpi-grid">
         <div class="kpi-card highlight">
-          <div class="kpi-label">Minha Bônus</div>
-          <div class="kpi-value">R$ ${myComm}</div>
+          <div class="kpi-label">Minha Comissão</div>
+          <div class="kpi-value">R$ ${money(myComm)}</div>
           <div class="kpi-sub">${my.length} vendas</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-label">Alunos Novos</div>
           <div class="kpi-value">${myNew}</div>
-          <div class="kpi-sub">R$ ${myNew*50}</div>
+          <div class="kpi-sub">R$ ${money(calcCommission(my.filter(s=>s.type==='new')))}</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-label">Rematrículas</div>
           <div class="kpi-value">${myRen}</div>
-          <div class="kpi-sub">R$ ${myRen*25}</div>
+          <div class="kpi-sub">R$ ${money(calcCommission(my.filter(s=>s.type==='renewal')))}</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-label">Minhas Disputas</div>
@@ -1077,16 +1097,16 @@ function renderOverview(allSales) {
     return;
   }
 
-  // Coordenador: visão geral da unidade selecionada (ou todas)
+  // Coordenador: visão geral da unidade selecionada
   const sales = allSales;
   const consultants = getConsultants(sales);
-  const totalNew     = sales.filter(s=>s.type==='new').length;
-  const totalRen     = sales.filter(s=>s.type==='renewal').length;
+  const totalNew     = uniqueTypeCount(sales, 'new');
+  const totalRen     = uniqueTypeCount(sales, 'renewal');
   const totalComm    = calcCommission(sales);
   const openDisputes = disputes.filter(d=>d.status==='open' && (!activeUnit||d.unit===activeUnit)).length;
   const unitTitle    = activeUnit ? UNIT_LABELS[activeUnit] : 'Todas as Unidades';
 
-  // Cards por unidade (só na visão geral)
+  // Cards por unidade (só na visão "Todas as Unidades")
   const unitCardsHtml = !activeUnit ? `
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:24px">
       ${UNIT_KEYS.map(uk => {
@@ -1094,30 +1114,30 @@ function renderOverview(allSales) {
         const uc = calcCommission(us);
         return `<div class="kpi-card" style="cursor:pointer" onclick="switchUnitByKey('${uk}')">
           <div class="kpi-label" style="color:var(--navy)">${UNIT_LABELS[uk]}</div>
-          <div class="kpi-value" style="font-size:24px">R$ ${uc}</div>
-          <div class="kpi-sub">${us.length} vendas · ${us.filter(s=>s.type==='new').length} novos · ${us.filter(s=>s.type==='renewal').length} rematrículas</div>
+          <div class="kpi-value" style="font-size:24px">R$ ${money(uc)}</div>
+          <div class="kpi-sub">${uniqueSaleCount(us)} vendas · ${uniqueTypeCount(us,'new')} novos · ${uniqueTypeCount(us,'renewal')} rematrículas</div>
         </div>`;
       }).join('')}
     </div>` : '';
 
   el.innerHTML = `
     <p class="page-title">${unitTitle}</p>
-    <p class="page-sub">${MONTH} · ${sales.length} vendas no total</p>
+    <p class="page-sub">${MONTH} · ${uniqueSaleCount(sales)} vendas no total</p>
     <div class="kpi-grid">
       <div class="kpi-card highlight">
-        <div class="kpi-label">Total Bônus</div>
-        <div class="kpi-value">R$ ${totalComm}</div>
-        <div class="kpi-sub">${sales.length} vendas</div>
+        <div class="kpi-label">Total Comissões</div>
+        <div class="kpi-value">R$ ${money(totalComm)}</div>
+        <div class="kpi-sub">${sales.length} lançamentos</div>
       </div>
       <div class="kpi-card">
         <div class="kpi-label">Alunos Novos</div>
         <div class="kpi-value">${totalNew}</div>
-        <div class="kpi-sub">R$ 50 cada</div>
+        <div class="kpi-sub">R$ ${money(calcCommission(sales.filter(s=>s.type==='new')))} no total</div>
       </div>
       <div class="kpi-card">
         <div class="kpi-label">Rematrículas</div>
         <div class="kpi-value">${totalRen}</div>
-        <div class="kpi-sub">R$ 25 cada</div>
+        <div class="kpi-sub">R$ ${money(calcCommission(sales.filter(s=>s.type==='renewal')))} no total</div>
       </div>
       <div class="kpi-card">
         <div class="kpi-label">Consultores Ativos</div>
@@ -1132,11 +1152,11 @@ function renderOverview(allSales) {
     ${unitCardsHtml}
     <div class="charts-grid">
       <div class="chart-card">
-        <h3>Ranking de Bônus</h3>
+        <h3>Ranking de Comissão</h3>
         <canvas id="chart-ranking"></canvas>
       </div>
       <div class="chart-card">
-        <h3>${!activeUnit ? 'Bônus por Unidade' : 'Novos vs Rematrícula'}</h3>
+        <h3>${!activeUnit ? 'Comissão por Unidade' : 'Novos vs Rematrícula'}</h3>
         <canvas id="chart-compare"></canvas>
       </div>
     </div>
@@ -1154,18 +1174,17 @@ function renderOverview(allSales) {
     type:'bar',
     data:{
       labels: ranked.map(r=>r.name),
-      datasets:[{label:'Bônus (R$)',data:ranked.map(r=>r.comm),backgroundColor:'#BEF575',borderRadius:6}]
+      datasets:[{label:'Comissão (R$)',data:ranked.map(r=>r.comm),backgroundColor:'#BEF575',borderRadius:6}]
     },
     options:{responsive:true,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{beginAtZero:true}}}
   });
 
   const ctx2 = document.getElementById('chart-compare').getContext('2d');
   if (!activeUnit) {
-    // Gráfico por unidade quando está na visão geral
     const unitStats = UNIT_KEYS.map(uk => ({
       label: (UNIT_LABELS[uk]||uk).replace('Positiva ','').replace('Acqua ',''),
-      new:   sales.filter(s=>s.unit===uk&&s.type==='new').length,
-      ren:   sales.filter(s=>s.unit===uk&&s.type==='renewal').length,
+      new:   uniqueTypeCount(sales.filter(s=>s.unit===uk), 'new'),
+      ren:   uniqueTypeCount(sales.filter(s=>s.unit===uk), 'renewal'),
       comm:  calcCommission(sales.filter(s=>s.unit===uk)),
     }));
     chartCompare = new Chart(ctx2, {
@@ -1212,8 +1231,6 @@ function renderSales(sales) {
 
   // Para consultor: montar opções de unidades onde ele tem vendas
   const allSales = getFilteredSales(null, isCoord ? {includeUnassigned: true} : null);
-  const consultorUnits = isCoord ? [] :
-    [...new Set(allSales.filter(s=>s.consultant===session.name).map(s=>s.unit))];
 
   const unitFilterHtml = !isCoord ? `
     <select id="unit-filter" onchange="applyFilters()">
@@ -1278,61 +1295,101 @@ function renderSalesTable(sales) {
   const isCoord = session.role === 'coordinator';
   const overrides = loadOverrides();
 
+  // Célula com os dados que variam por pessoa (Consultor, Tipo/Papel, Comissão, Ação).
+  // Cada linha de comissão mantém sua própria disputa e botão de contestação, mesmo
+  // quando exibida agrupada com o outro lado de uma matrícula dividida (cadastro/conversão).
+  function personCell(s) {
+    const dispute = disputes.find(d=>d.saleId===s.line_id && d.unit===s.unit && d.status==='open');
+    const resolved= disputes.find(d=>d.saleId===s.line_id && d.unit===s.unit && d.status==='resolved');
+    const isDisp  = !!dispute;
+    const isRes   = !!resolved;
+    const isMe    = s.consultant === session.name;
+    const isUnassigned = !s.consultant;
+    const isManual = !!s._manual;
+    const isAlreadyUnassigned = overrides.unassigned.some(u => u.id === s.line_id && u.unit === s.unit);
+    let statusTag = '';
+    if (isDisp) statusTag = ' <span class="tag tag-disputed" style="font-size:9px">Disputa</span>';
+    else if (isRes) statusTag = ' <span class="tag tag-resolved" style="font-size:9px">Resolvida</span>';
+
+    let actionCell = '<td></td>';
+    if (isCoord) {
+      if (isManual) {
+        actionCell = `<td><span class="tag" style="background:#e3f2fd;color:#1565c0;font-size:11px;margin-right:6px">Manual</span><button class="btn-del" onclick="deleteAddedSale('${s.line_id}')" style="font-size:11px;padding:3px 8px">Excluir</button></td>`;
+      } else if (isUnassigned || isAlreadyUnassigned) {
+        actionCell = `<td><button class="btn-sm btn-approve" onclick="reassignSale('${s.line_id}','${s.unit}')" style="font-size:11px">Reatribuir</button></td>`;
+      } else {
+        actionCell = `<td><button class="btn-sm btn-reject" onclick="unassignSale('${s.line_id}','${s.unit}')" style="font-size:11px">Remover Dono</button></td>`;
+      }
+    } else {
+      if (!isMe && !isDisp && !isRes && !isUnassigned) {
+        actionCell = `<td><button class="btn-dispute" onclick="openDisputeModal('${s.line_id}','${s.unit}')">Contestar</button></td>`;
+      } else if (isDisp && dispute.claimant === session.name) {
+        actionCell = `<td><span style="font-size:12px;color:var(--warning);font-weight:700">Aguardando</span></td>`;
+      } else if (isDisp && s.consultant === session.name && !dispute.defense) {
+        actionCell = `<td><button class="btn-sm btn-approve" onclick="openDefenseModal(${disputes.indexOf(dispute)})" style="font-size:11px">⚔️ Me Defender</button></td>`;
+      } else if (isDisp && s.consultant === session.name && dispute.defense) {
+        actionCell = `<td><span style="font-size:12px;color:var(--success);font-weight:700">✓ Defesa enviada</span></td>`;
+      }
+    }
+
+    const role = roleLabel(s);
+    const consultantCell = isUnassigned
+      ? '<span class="tag" style="background:#f5f5f5;color:#999;font-size:11px">Sem consultor</span>'
+      : `${shortName(s.consultant)} ${isMe?'<span class="tag" style="background:#e8f5e9;color:#2e7d32;font-size:10px">Você</span>':''}${statusTag}`;
+    return {
+      isMe, isUnassigned,
+      front: `
+        <td>${consultantCell}</td>
+        <td><span class="tag ${s.type==='new'?'tag-new':'tag-renewal'}">${s.type==='new'?'Novo':'Rematrícula'}</span>${role?`<div style="font-size:11px;color:var(--mid);margin-top:2px">${role}</div>`:''}</td>
+        <td><strong>R$ ${money(s.commission)}</strong> ${s.needs_review?'<span class="tag" style="background:#fff3e0;color:#e65100;font-size:10px" title="Plano não reconhecido na tabela de comissões — valor padrão aplicado, revise">⚠ Revisar</span>':''}</td>`,
+      actionCell,
+    };
+  }
+
+  // Agrupa cadastro + conversão da mesma matrícula em um único bloco visual —
+  // são duas linhas de comissão distintas, mas representam uma única venda.
+  const groups = [];
+  const index = new Map();
+  sales.forEach(s => {
+    if (index.has(s.id)) { index.get(s.id).push(s); }
+    else { const arr = [s]; index.set(s.id, arr); groups.push(arr); }
+  });
+
+  const rowsHtml = groups.map(group => {
+    const isSplit = group.length === 2 && group.every(s => s.role === 'cadastro' || s.role === 'conversao');
+    const ordered = isSplit
+      ? [group.find(s=>s.role==='cadastro'), group.find(s=>s.role==='conversao')]
+      : group;
+    const [first, ...rest] = ordered;
+    const span = ordered.length;
+
+    const firstCell = personCell(first);
+    let html = `<tr class="${firstCell.isMe?'mine':''}${isSplit?' split-pair':''}"${firstCell.isUnassigned?' style="opacity:.6"':''}>
+      <td rowspan="${span}"><strong>#${first.id}</strong></td>
+      <td rowspan="${span}">${first.student}</td>
+      ${firstCell.front}
+      <td rowspan="${span}">${first.date}</td>
+      <td rowspan="${span}" style="max-width:200px;font-size:12px;color:var(--mid)">${first.contract.slice(0,40)}${first.contract.length>40?'…':''}</td>
+      ${firstCell.actionCell}
+    </tr>`;
+
+    rest.forEach(s => {
+      const cell = personCell(s);
+      html += `<tr class="${cell.isMe?'mine':''}${isSplit?' split-pair split-sub':''}"${cell.isUnassigned?' style="opacity:.6"':''}>
+        ${cell.front}
+        ${cell.actionCell}
+      </tr>`;
+    });
+    return html;
+  }).join('');
+
   body.innerHTML = `<table class="data-table">
     <thead><tr>
       <th>ID</th><th>Aluno</th><th>Consultor</th><th>Tipo</th>
-      <th>Bônus</th><th>Data</th><th>Contrato</th>
+      <th>Comissão</th><th>Data</th><th>Contrato</th>
       <th>Ação</th>
     </tr></thead>
-    <tbody>
-    ${sales.map(s => {
-      const dispute = disputes.find(d=>d.saleId===s.id && d.unit===s.unit && d.status==='open');
-      const resolved= disputes.find(d=>d.saleId===s.id && d.unit===s.unit && d.status==='resolved');
-      const isDisp  = !!dispute;
-      const isRes   = !!resolved;
-      const isMe    = s.consultant === session.name;
-      const isUnassigned = !s.consultant;
-      const isManual = !!s._manual;
-      const isAlreadyUnassigned = overrides.unassigned.some(u => u.id === s.id && u.unit === s.unit);
-
-      let consultantCell = isUnassigned
-        ? '<span class="tag" style="background:#f5f5f5;color:#999;font-size:11px">Sem consultor</span>'
-        : `${shortName(s.consultant)} ${isMe?'<span class="tag" style="background:#e8f5e9;color:#2e7d32;font-size:10px">Você</span>':''}`;
-
-      let actionCell = '<td></td>';
-
-      if (isCoord) {
-        if (isManual) {
-          actionCell = `<td><span class="tag" style="background:#e3f2fd;color:#1565c0;font-size:11px;margin-right:6px">Manual</span><button class="btn-del" onclick="deleteAddedSale('${s.id}')" style="font-size:11px;padding:3px 8px">Excluir</button></td>`;
-        } else if (isUnassigned || isAlreadyUnassigned) {
-          actionCell = `<td><button class="btn-sm btn-approve" onclick="reassignSale('${s.id}','${s.unit}')" style="font-size:11px">Reatribuir</button></td>`;
-        } else {
-          actionCell = `<td><button class="btn-sm btn-reject" onclick="unassignSale('${s.id}','${s.unit}')" style="font-size:11px">Remover Dono</button></td>`;
-        }
-      } else {
-        if (!isMe && !isDisp && !isRes && !isUnassigned) {
-          actionCell = `<td><button class="btn-dispute" onclick="openDisputeModal('${s.id}','${s.unit}')">Contestar</button></td>`;
-        } else if (isDisp && dispute.claimant === session.name) {
-          actionCell = `<td><span style="font-size:12px;color:var(--warning);font-weight:700">Aguardando decisão</span></td>`;
-        } else if (isDisp && s.consultant === session.name && !dispute.defense) {
-          actionCell = `<td><button class="btn-sm btn-approve" onclick="openDefenseModal(${disputes.indexOf(dispute)})" style="font-size:11px">⚔️ Me Defender</button></td>`;
-        } else if (isDisp && s.consultant === session.name && dispute.defense) {
-          actionCell = `<td><span style="font-size:12px;color:var(--success);font-weight:700">✓ Defesa enviada</span></td>`;
-        }
-      }
-
-      return `<tr class="${isMe?'mine':''}${isUnassigned?' style="opacity:.6"':''}">
-        <td><strong>#${s.id}</strong></td>
-        <td>${s.student}</td>
-        <td>${consultantCell}</td>
-        <td><span class="tag ${s.type==='new'?'tag-new':'tag-renewal'}">${s.type==='new'?'Novo':'Rematrícula'}</span></td>
-        <td><strong>R$ ${s.commission}</strong></td>
-        <td>${s.date}</td>
-        <td style="max-width:200px;font-size:12px;color:var(--mid)">${s.contract.slice(0,40)}${s.contract.length>40?'…':''}</td>
-        ${actionCell}
-      </tr>`;
-    }).join('')}
-    </tbody>
+    <tbody>${rowsHtml}</tbody>
   </table>`;
 }
 
@@ -1361,13 +1418,13 @@ function renderRanking(sales) {
     <p class="page-title">Ranking — ${unitTitle}</p>
     <p class="page-sub">${MONTH}</p>
     <div class="table-card">
-      <h3>Consultores por Bônus</h3>
+      <h3>Consultores por Comissão</h3>
       <div style="margin-top:16px">
         ${ranked.map((r,i) => `
           <div class="ranking-row">
             <div class="rank-pos ${i<3?'top':''}">${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</div>
             <div style="flex:1">
-              <div class="rank-name">${r.name}
+              <div class="rank-name">${r.name.split(' ').slice(0,2).join(' ')}
                 ${r.name===session.name?'<span class="tag" style="background:#e8f5e9;color:#2e7d32;font-size:10px">Você</span>':''}
               </div>
               <div class="rank-detail">${r.new} novo${r.new!==1?'s':''} · ${r.ren} rematrícula${r.ren!==1?'s':''}</div>
@@ -1375,7 +1432,7 @@ function renderRanking(sales) {
             <div class="rank-bar-wrap">
               <div class="rank-bar" style="width:${Math.round(r.comm/maxComm*100)}%"></div>
             </div>
-            <div class="rank-val">R$ ${r.comm}</div>
+            <div class="rank-val">R$ ${money(r.comm)}</div>
           </div>
         `).join('')}
       </div>
@@ -1412,11 +1469,11 @@ function renderDisputes(sales) {
   if (open.length) {
     html += `<h3 style="font-size:15px;font-weight:800;margin-bottom:12px;color:var(--warning)">Em Aberto (${open.length})</h3>`;
     open.forEach((d,i) => {
-      const sale = sales.find(s=>s.id===d.saleId&&s.unit===d.unit);
+      const sale = sales.find(s=>s.line_id===d.saleId&&s.unit===d.unit);
       html += `<div class="dispute-card">
         <div class="dispute-meta">
           <span class="tag tag-disputed">Em Disputa</span>
-          <strong>#${d.saleId}</strong>
+          <strong>#${d.displayId}</strong>
           <span style="color:var(--mid);font-size:13px">${d.unit_label}</span>
         </div>
         <p style="font-size:14px"><strong>Venda atual:</strong> ${shortName(d.originalConsultant)}</p>
@@ -1449,7 +1506,7 @@ function renderDisputes(sales) {
       html += `<div class="dispute-card resolved">
         <div class="dispute-meta">
           <span class="tag" style="background:#e8f5e9;color:#2e7d32">Resolvida</span>
-          <strong>#${d.saleId}</strong>
+          <strong>#${d.displayId}</strong>
           <span style="color:var(--mid);font-size:13px">${d.unit_label}</span>
         </div>
         <p style="font-size:14px"><strong>Decisão:</strong> ${d.action==='transfer'?`Transferida para ${shortName(d.claimant)}`:'Mantida com '+shortName(d.originalConsultant)}</p>
@@ -1506,14 +1563,14 @@ function updateCompare() {
   function stats(sales) {
     const consultants = getConsultants(sales);
     return {
-      total: sales.length,
-      newCount: sales.filter(s=>s.type==='new').length,
-      renCount: sales.filter(s=>s.type==='renewal').length,
+      total: uniqueSaleCount(sales),
+      newCount: uniqueTypeCount(sales, 'new'),
+      renCount: uniqueTypeCount(sales, 'renewal'),
       commission: calcCommission(sales),
       consultants: consultants.length,
       ranked: consultants.map(c => {
         const cs = salesForConsultant(c, sales);
-        return {name:shortName(c), comm:calcCommission(cs), new:cs.filter(s=>s.type==='new').length, ren:cs.filter(s=>s.type==='renewal').length};
+        return {name:c.split(' ').slice(0,2).join(' '), comm:calcCommission(cs), new:cs.filter(s=>s.type==='new').length, ren:cs.filter(s=>s.type==='renewal').length};
       }).sort((a,b)=>b.comm-a.comm),
     };
   }
@@ -1554,7 +1611,7 @@ function updateCompare() {
           <tr><td><strong>Total Vendas</strong></td><td>${stA.total}</td><td>${stB.total}</td><td>${delta(stA.total,stB.total)} ${deltaR(stA.total,stB.total)}</td></tr>
           <tr><td>Alunos Novos</td><td>${stA.newCount}</td><td>${stB.newCount}</td><td>${delta(stA.newCount,stB.newCount)} ${deltaR(stA.newCount,stB.newCount)}</td></tr>
           <tr><td>Rematrículas</td><td>${stA.renCount}</td><td>${stB.renCount}</td><td>${delta(stA.renCount,stB.renCount)} ${deltaR(stA.renCount,stB.renCount)}</td></tr>
-          <tr><td><strong>Total Bônus</strong></td><td><strong>R$ ${stA.commission}</strong></td><td><strong>R$ ${stB.commission}</strong></td><td>${delta(stA.commission,stB.commission)} ${deltaR(stA.commission,stB.commission)}</td></tr>
+          <tr><td><strong>Total Comissão</strong></td><td><strong>R$ ${money(stA.commission)}</strong></td><td><strong>R$ ${money(stB.commission)}</strong></td><td>${delta(stA.commission,stB.commission)} ${deltaR(stA.commission,stB.commission)}</td></tr>
           <tr><td>Consultores Ativos</td><td>${stA.consultants}</td><td>${stB.consultants}</td><td>${delta(stA.consultants,stB.consultants)}</td></tr>
         </tbody>
       </table>
@@ -1563,7 +1620,7 @@ function updateCompare() {
     <!-- Charts -->
     <div class="charts-grid" style="margin-bottom:20px">
       <div class="chart-card">
-        <h3>Bônus por Consultor — ${mA} vs ${mB}</h3>
+        <h3>Comissão por Consultor — ${mA} vs ${mB}</h3>
         <canvas id="chart-cmp1"></canvas>
       </div>
       <div class="chart-card">
@@ -1578,8 +1635,8 @@ function updateCompare() {
       <table class="data-table">
         <thead><tr>
           <th>Consultor</th>
-          <th style="color:var(--navy)">Bônus ${mA}</th>
-          <th style="color:var(--dark)">Bônus ${mB}</th>
+          <th style="color:var(--navy)">Comissão ${mA}</th>
+          <th style="color:var(--dark)">Comissão ${mB}</th>
           <th>Variação</th>
           <th style="color:var(--navy)">Vendas ${mA}</th>
           <th style="color:var(--dark)">Vendas ${mB}</th>
@@ -1591,8 +1648,8 @@ function updateCompare() {
             const isMe = session.name.startsWith(name.split(' ')[0]);
             return `<tr class="${isMe?'mine':''}">
               <td><strong>${name}</strong></td>
-              <td>R$ ${a.comm}</td>
-              <td>R$ ${b.comm}</td>
+              <td>R$ ${money(a.comm)}</td>
+              <td>R$ ${money(b.comm)}</td>
               <td>${delta(a.comm,b.comm)} ${deltaR(a.comm,b.comm)}</td>
               <td>${a.new+a.ren}</td>
               <td>${b.new+b.ren}</td>
@@ -1603,12 +1660,12 @@ function updateCompare() {
     </div>
   `;
 
-  // Chart 1: bônus lado a lado por consultor
+  // Chart 1: comissão lado a lado por consultor
   const ctx1 = document.getElementById('chart-cmp1').getContext('2d');
   chartCmp1 = new Chart(ctx1, {
     type: 'bar',
     data: {
-      labels: allConsultants.map(n=>n),
+      labels: allConsultants.map(n=>n.split(' ')[0]),
       datasets: [
         {label:mA, data:allConsultants.map(n=>{const r=stA.ranked.find(x=>x.name===n);return r?r.comm:0}), backgroundColor:'#34425C', borderRadius:4},
         {label:mB, data:allConsultants.map(n=>{const r=stB.ranked.find(x=>x.name===n);return r?r.comm:0}), backgroundColor:'#BEF575', borderRadius:4},
@@ -1650,8 +1707,8 @@ function renderAdmin() {
           <div class="user-row">
             <div class="user-avatar">${u.name[0]}</div>
             <div class="user-info">
-              <div class="un">${shortName(u.name)}</div>
-              <div class="up">Login: <strong>${login}</strong> · Senha: <strong>${u.pw}</strong></div>
+              <div class="un">${u.name.split(' ').slice(0,2).join(' ')}</div>
+              <div class="up">Login: <strong>${login}</strong> · Senha: <em style="color:var(--mid)">oculta (protegida por hash)</em></div>
             </div>
             <button class="btn-edit-pw" onclick="openPwModal('${login}')">Alterar Senha</button>
             <button class="btn-del" onclick="deleteUser('${login}')">Remover</button>
@@ -1669,13 +1726,13 @@ function renderAdmin() {
   `;
 }
 
-function addUser() {
+async function addUser() {
   const name  = document.getElementById('new-user-name').value.trim().toUpperCase();
   const login = document.getElementById('new-user-login').value.trim().toLowerCase();
   const pw    = document.getElementById('new-user-pw').value.trim();
   if (!name||!login||!pw) { alert('Preencha todos os campos.'); return; }
   if (users[login]) { alert('Login já existe.'); return; }
-  users[login] = {name, role:'consultant', pw};
+  users[login] = {name, role:'consultant', pw: await hashPw(pw)};
   saveUsers(users);
   renderAdmin();
 }
@@ -1693,10 +1750,10 @@ function openPwModal(login) {
   openModal('modal-pw');
 }
 
-function saveNewPw() {
+async function saveNewPw() {
   const pw = document.getElementById('new-pw').value.trim();
   if (!pw) return;
-  users[pendingPwLogin].pw = pw;
+  users[pendingPwLogin].pw = await hashPw(pw);
   saveUsers(users);
   closeModal('modal-pw');
   renderAdmin();
@@ -1705,35 +1762,35 @@ function saveNewPw() {
 // ══════════════════════════════════════════════
 //  GERENCIAR VENDAS (COORD)
 // ══════════════════════════════════════════════
-async function unassignSale(id, unit) {
+async function unassignSale(lineId, unit) {
   if (!confirm('Remover o dono desta venda? Ela ficará sem consultor atribuído.')) return;
   const overrides = loadOverrides();
-  if (!overrides.unassigned.some(u => u.id === id && u.unit === unit)) {
-    overrides.unassigned.push({ id, unit });
+  if (!overrides.unassigned.some(u => u.id === lineId && u.unit === unit)) {
+    overrides.unassigned.push({ id: lineId, unit });
   }
   saveOverridesLocal(overrides);
   destroyCharts();
   renderSection('sales');
-  await sbUnassignSale(id, unit);
+  await sbUnassignSale(lineId, unit);
 }
 
-async function reassignSale(id, unit) {
+async function reassignSale(lineId, unit) {
   const overrides = loadOverrides();
-  overrides.unassigned = overrides.unassigned.filter(u => !(u.id === id && u.unit === unit));
+  overrides.unassigned = overrides.unassigned.filter(u => !(u.id === lineId && u.unit === unit));
   saveOverridesLocal(overrides);
   destroyCharts();
   renderSection('sales');
-  await sbReassignSale(id, unit);
+  await sbReassignSale(lineId, unit);
 }
 
-async function deleteAddedSale(id) {
+async function deleteAddedSale(lineId) {
   if (!confirm('Excluir esta venda manual?')) return;
   const overrides = loadOverrides();
-  overrides.added = overrides.added.filter(s => s.id !== id);
+  overrides.added = overrides.added.filter(s => s.line_id !== lineId);
   saveOverridesLocal(overrides);
   destroyCharts();
   renderSection('sales');
-  await sbDeleteManualSale(id);
+  await sbDeleteManualSale(lineId);
 }
 
 function openAddSaleModal() {
@@ -1743,7 +1800,6 @@ function openAddSaleModal() {
   sel.innerHTML = '<option value="">— Sem consultor —</option>' +
     consultants.map(c => `<option value="${c}">${shortName(c)}</option>`).join('');
 
-  // Populate unit select
   const unitSel = document.getElementById('add-unit');
   unitSel.innerHTML = UNIT_KEYS.map(u => `<option value="${u}">${UNIT_LABELS[u]||u}</option>`).join('');
   if (activeUnit) unitSel.value = activeUnit;
@@ -1765,8 +1821,9 @@ async function submitAddSale() {
 
   if (!student || !date || !unit) { alert('Preencha aluno, data e unidade.'); return; }
 
+  const id = 'M' + Date.now();
   const newSale = {
-    id: 'M' + Date.now(), student, consultant, type,
+    id, line_id: id, student, consultant, type, role: consultant ? 'completo' : null,
     commission: type === 'new' ? 50 : 25, date, contract,
     unit, unit_label: UNIT_LABELS[unit] || unit, month: MONTH, _manual: true,
   };
@@ -1784,12 +1841,13 @@ async function submitAddSale() {
 // ══════════════════════════════════════════════
 function openDisputeModal(saleId, unit) {
   const sales = getFilteredSales();
-  const sale = sales.find(s=>s.id===saleId&&s.unit===unit);
+  const sale = sales.find(s=>s.line_id===saleId&&s.unit===unit);
   if (!sale) return;
   pendingDisputeSale = {saleId, unit};
   document.getElementById('dispute-sale-info').innerHTML = `
     <strong>Aluno:</strong> ${sale.student} (#${sale.id})<br>
-    <strong>Cadastrado por:</strong> ${sale.consultant}<br>
+    <strong>${sale.role==='conversao'?'Convertido por':sale.role==='consultor'?'Consultor':'Cadastrado por'}:</strong> ${sale.consultant}<br>
+    <strong>Comissão contestada:</strong> R$ ${money(sale.commission)} (${roleLabel(sale)})<br>
     <strong>Data:</strong> ${sale.date}<br>
     <strong>Contrato:</strong> ${sale.contract}
   `;
@@ -1801,17 +1859,19 @@ async function submitDispute() {
   const reason = document.getElementById('dispute-reason').value.trim();
   if (!reason) { alert('Informe o motivo da contestação.'); return; }
   const sales = getFilteredSales();
-  const sale  = sales.find(s=>s.id===pendingDisputeSale.saleId&&s.unit===pendingDisputeSale.unit);
+  const sale  = sales.find(s=>s.line_id===pendingDisputeSale.saleId&&s.unit===pendingDisputeSale.unit);
   if (!sale) return;
 
   const newDispute = {
     _localId: Date.now() + '-' + Math.random().toString(36).slice(2),
     saleId: pendingDisputeSale.saleId,
-    unit: pendingDisputeSale.unit,
+    displayId: sale.id,
+    unit:   pendingDisputeSale.unit,
     unit_label: UNIT_LABELS[pendingDisputeSale.unit] || pendingDisputeSale.unit,
     originalConsultant: sale.consultant,
     claimant: session.name,
-    reason, status: 'open',
+    reason,
+    status: 'open',
     createdAt: new Date().toLocaleDateString('pt-BR'),
     resolution: null, resolvedBy: null, resolvedAt: null, action: null,
     defense: null, defendedAt: null, month: MONTH,
@@ -1831,9 +1891,9 @@ function openDefenseModal(idx) {
   pendingDefenseIdx = idx;
   const d = disputes[idx];
   const sales = getFilteredSales();
-  const sale  = sales.find(s => s.id === d.saleId && s.unit === d.unit);
+  const sale  = sales.find(s => s.line_id === d.saleId && s.unit === d.unit);
   document.getElementById('defense-sale-info').innerHTML = `
-    <strong>Aluno:</strong> ${sale ? sale.student : d.saleId} (#${d.saleId})<br>
+    <strong>Aluno:</strong> ${sale ? sale.student : d.displayId} (#${d.displayId})<br>
     <strong>Contestado por:</strong> ${shortName(d.claimant)}<br>
     <strong>Data:</strong> ${sale ? sale.date : '—'}
   `;
@@ -1861,7 +1921,7 @@ function openResolveModal(idx) {
   pendingResolveIdx = idx;
   const d = disputes[idx];
   document.getElementById('resolve-info').innerHTML = `
-    <strong>Venda #${d.saleId}</strong> — ${d.unit_label}<br><br>
+    <strong>Venda #${d.displayId}</strong> — ${d.unit_label}<br><br>
     <div style="background:#fff3e0;border-radius:8px;padding:10px 12px;margin-bottom:8px">
       <strong>⚔️ Contestação de ${shortName(d.claimant)}:</strong><br>
       <span style="font-size:13px">${d.reason}</span>
@@ -1895,19 +1955,18 @@ async function resolveDispute(action) {
 //  EXPORTAR PLANILHA
 // ══════════════════════════════════════════════
 function exportSalesCSV() {
-  // Pega vendas com todos os overrides aplicados, excluindo sem dono
   const sales = getFilteredSales(null, {includeUnassigned: false});
 
-  // Enriquece com info de disputa resolvida
   const rows = sales.map(s => {
-    const dispute = disputes.find(d => d.saleId === s.id && d.unit === s.unit && d.status === 'resolved');
+    const dispute = disputes.find(d => d.saleId === s.line_id && d.unit === s.unit && d.status === 'resolved');
     const origem  = s._manual ? 'Manual' : (dispute ? 'Disputa resolvida' : 'Relatório');
     return {
       'ID':          s.id,
       'Aluno':       s.student,
       'Consultor':   s.consultant,
+      'Papel':       roleLabel(s) || (s.type === 'new' ? 'Novo' : 'Rematrícula'),
       'Tipo':        s.type === 'new' ? 'Novo' : 'Rematrícula',
-      'Bônus (R$)': s.commission,
+      'Comissão (R$)': s.commission,
       'Data':        s.date,
       'Contrato':    s.contract,
       'Unidade':     s.unit_label,
@@ -1925,13 +1984,12 @@ function exportSalesCSV() {
     ...rows.map(r => headers.map(h => escape(r[h])).join(';'))
   ].join('\n');
 
-  // BOM para Excel abrir UTF-8 corretamente
   const blob = new Blob(['﻿' + csvContent], { type: 'text/csv;charset=utf-8;' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
   const unit = activeUnit ? UNIT_LABELS[activeUnit].replace(/\s+/g,'_') : 'Todas_Unidades';
   a.href     = url;
-  a.download = `Bonus_${MONTH.replace('/','_')}_${unit}.csv`;
+  a.download = `Comissao_${MONTH.replace('/','_')}_${unit}.csv`;
   a.click();
   URL.revokeObjectURL(url);
 }
