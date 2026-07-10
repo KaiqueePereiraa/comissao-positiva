@@ -470,11 +470,11 @@ select:focus{border-color:var(--navy)}
   </div>
 </div>
 
-<!-- MODAL ADICIONAR VENDA (COORD) -->
+<!-- MODAL ADICIONAR/EDITAR VENDA (COORD) -->
 <div class="modal-overlay" id="modal-add-sale">
   <div class="modal" style="max-width:580px">
-    <h3>Adicionar Venda Manualmente</h3>
-    <p style="font-size:13px;color:var(--mid);margin-bottom:20px">Use para incluir vendas que não apareceram nos relatórios.</p>
+    <h3 id="add-sale-title">Adicionar Venda Manualmente</h3>
+    <p id="add-sale-sub" style="font-size:13px;color:var(--mid);margin-bottom:20px">Use para incluir vendas que não apareceram nos relatórios.</p>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
       <div class="form-group" style="margin-bottom:0">
         <label>Aluno *</label>
@@ -488,9 +488,9 @@ select:focus{border-color:var(--navy)}
       </div>
       <div class="form-group" style="margin-bottom:0">
         <label>Tipo *</label>
-        <select id="add-type" style="width:100%;padding:12px 16px;border:2px solid var(--gray);border-radius:10px;font-family:inherit;font-size:15px;outline:none">
-          <option value="new">Novo (R$ 50)</option>
-          <option value="renewal">Rematrícula (R$ 25)</option>
+        <select id="add-type" onchange="syncAddCommissionDefault()" style="width:100%;padding:12px 16px;border:2px solid var(--gray);border-radius:10px;font-family:inherit;font-size:15px;outline:none">
+          <option value="new">Novo</option>
+          <option value="renewal">Rematrícula</option>
         </select>
       </div>
       <div class="form-group" style="margin-bottom:0">
@@ -503,13 +503,17 @@ select:focus{border-color:var(--navy)}
         <input type="text" id="add-date" placeholder="dd/mm/aaaa">
       </div>
       <div class="form-group" style="margin-bottom:0">
+        <label>Comissão (R$) *</label>
+        <input type="text" id="add-commission" placeholder="Ex: 20 ou 17,50">
+      </div>
+      <div class="form-group" style="margin-bottom:0;grid-column:1/-1">
         <label>Contrato</label>
         <input type="text" id="add-contract" placeholder="Descrição do contrato">
       </div>
     </div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeModal('modal-add-sale')">Cancelar</button>
-      <button class="btn-primary" onclick="submitAddSale()">Adicionar Venda</button>
+      <button class="btn-primary" id="add-sale-submit" onclick="submitAddSale()">Adicionar Venda</button>
     </div>
   </div>
 </div>
@@ -560,6 +564,14 @@ function saleIdFromLine(lineId) {
   return String(lineId || '').replace(/-(cad|conv|full|ren)$/, '');
 }
 
+// O papel (cadastro/conversão/etc) também vem do sufixo do line_id — evita precisar de
+// coluna extra no Supabase para guardar isso em vendas manuais/editadas.
+function roleFromLineId(lineId) {
+  const m = /-(cad|conv|full|ren)$/.exec(String(lineId || ''));
+  if (!m) return null;
+  return {cad:'cadastro', conv:'conversao', full:'completo', ren:'consultor'}[m[1]];
+}
+
 function dbRowToDispute(r) {
   return {
     _localId: r.local_id,
@@ -574,8 +586,8 @@ function dbRowToDispute(r) {
 
 function dbRowToManual(r) {
   return {
-    id: r.id, line_id: r.id, student: r.student, consultant: r.consultant,
-    type: r.type, role: r.consultant ? 'completo' : null, commission: r.commission, date: r.sale_date,
+    id: saleIdFromLine(r.id), line_id: r.id, student: r.student, consultant: r.consultant,
+    type: r.type, role: roleFromLineId(r.id) || (r.consultant ? 'completo' : null), commission: r.commission, date: r.sale_date,
     contract: r.contract, unit: r.unit, unit_label: r.unit_label,
     month: r.month, _manual: true,
   };
@@ -599,41 +611,59 @@ async function syncFromSupabase() {
   } catch(e) { console.warn('Supabase sync failed', e); }
 }
 
+// Toda escrita no Supabase passa por aqui — se falhar (RLS, coluna incompatível, rede),
+// avisa visivelmente em vez de deixar a mudança parecer salva só localmente.
+function checkSbResult(res, label) {
+  if (res && res.error) {
+    console.warn('Supabase write failed:', label, res.error);
+    showSyncToast('⚠ Não sincronizou: ' + label);
+  }
+  return res;
+}
+
 // Operações individuais — disputes
 async function sbAddDispute(d) {
-  await db.from('disputes').insert({
+  const res = await db.from('disputes').insert({
     local_id: d._localId, sale_id: d.saleId, unit: d.unit,
     unit_label: d.unit_label, original_consultant: d.originalConsultant,
     claimant: d.claimant, reason: d.reason, status: d.status,
     created_at_str: d.createdAt, month: d.month,
   });
+  return checkSbResult(res, 'contestação');
 }
 async function sbUpdateDispute(d) {
-  await db.from('disputes').update({
+  const res = await db.from('disputes').update({
     defense: d.defense, defended_at: d.defendedAt,
     status: d.status, action: d.action, resolution: d.resolution,
     resolved_by: d.resolvedBy, resolved_at: d.resolvedAt,
   }).eq('local_id', d._localId);
+  return checkSbResult(res, 'disputa');
 }
 
 // Operações individuais — vendas sem dono
 async function sbUnassignSale(id, unit) {
-  await db.from('unassigned_sales').upsert({ sale_id: id, unit, month: MONTH }, { onConflict: 'sale_id,unit' });
+  const res = await db.from('unassigned_sales').upsert({ sale_id: id, unit, month: MONTH }, { onConflict: 'sale_id,unit' });
+  return checkSbResult(res, 'remoção de dono');
 }
 async function sbReassignSale(id, unit) {
-  await db.from('unassigned_sales').delete().eq('sale_id', id).eq('unit', unit);
+  const res = await db.from('unassigned_sales').delete().eq('sale_id', id).eq('unit', unit);
+  return checkSbResult(res, 'reatribuição');
 }
 
 // Operações individuais — vendas manuais
 async function sbAddManualSale(s) {
-  await db.from('manual_sales').insert({
-    id: s.id, student: s.student, consultant: s.consultant,
+  // A coluna "id" no Supabase guarda o line_id (chave única por linha de comissão) —
+  // upsert: um "Editar Venda" reenvia o mesmo line_id para sobrescrever a entrada anterior.
+  const res = await db.from('manual_sales').upsert({
+    id: s.line_id, student: s.student, consultant: s.consultant,
     type: s.type, commission: s.commission, sale_date: s.date,
     contract: s.contract, unit: s.unit, unit_label: s.unit_label, month: s.month,
-  });
+  }, { onConflict: 'id' });
+  return checkSbResult(res, 'venda/edição');
 }
 async function sbDeleteManualSale(id) {
-  await db.from('manual_sales').delete().eq('id', id);
+  const res = await db.from('manual_sales').delete().eq('id', id);
+  return checkSbResult(res, 'exclusão');
 }
 
 // Realtime: qualquer mudança em qualquer tabela re-sincroniza e re-renderiza
@@ -954,7 +984,10 @@ function getFilteredSales(monthOverride, opts) {
     const s = sales.find(x => x.line_id === id && x.unit === unit);
     if (s) s.consultant = '';
   });
-  // Include manually added sales
+  // Vendas manuais/editadas: quando o id coincide com uma linha do relatório, ela é
+  // substituída (edição); ids novos são inclusões.
+  const overrideIds = new Set(overrides.added.map(s => s.line_id));
+  sales = sales.filter(s => !overrideIds.has(s.line_id));
   sales = [...sales, ...overrides.added];
 
   const month = monthOverride || activeMonth;
@@ -1238,9 +1271,17 @@ function renderSales(sales) {
       ${UNIT_KEYS.map(u=>`<option value="${u}">${(UNIT_LABELS[u]||u).replace('Positiva ','').replace('Acqua ','')}</option>`).join('')}
     </select>` : '';
 
+  const reviewCount = allSales.filter(s => s.needs_review).length;
+  const reviewBannerHtml = reviewCount > 0 ? `
+    <div class="coordinator-notice" style="background:#fff3e0;border-color:#ffe0b2;color:#e65100">
+      ⚠ ${reviewCount} venda${reviewCount!==1?'s têm':' tem'} valor de comissão não reconhecido pela tabela de planos (tag "Revisar")${isCoord ? ' — clique em "Editar" na linha para corrigir o valor.' : '.'}
+      ${isCoord ? `<button onclick="document.getElementById('review-filter').checked=true;applyFilters()" style="margin-left:10px;padding:4px 12px;background:#e65100;color:#fff;border:none;border-radius:6px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer">Mostrar só essas</button>` : ''}
+    </div>` : '';
+
   el.innerHTML = `
     <p class="page-title">Vendas — ${isCoord ? unitTitle : 'Todas as Unidades'}</p>
     <p class="page-sub">${MONTH}</p>
+    ${reviewBannerHtml}
     <div class="table-card">
       <div class="table-header">
         <h3>Lista de Vendas (${sales.length})</h3>
@@ -1256,6 +1297,9 @@ function renderSales(sales) {
             ${getConsultants(allSales).map(c=>`<option value="${c}">${shortName(c)}</option>`).join('')}
           </select>` : ''}
           <input class="search-box" id="search-sales" placeholder="Buscar aluno, ID..." oninput="applyFilters()">
+          ${isCoord && reviewCount > 0 ? `<label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#e65100;cursor:pointer">
+            <input type="checkbox" id="review-filter" onchange="applyFilters()"> Só revisar (${reviewCount})
+          </label>` : ''}
           ${isCoord ? `<button class="btn-add" onclick="openAddSaleModal()" style="padding:8px 16px;font-size:13px">+ Adicionar Venda</button>
           <button onclick="exportSalesCSV()" style="padding:8px 16px;font-size:13px;background:#e8f5e9;color:#2e7d32;border:none;border-radius:8px;font-family:inherit;font-weight:800;cursor:pointer">⬇ Exportar Planilha</button>` : ''}
         </div>
@@ -1267,15 +1311,17 @@ function renderSales(sales) {
 }
 
 function applyFilters() {
-  const search = (document.getElementById('search-sales')?.value || '').toLowerCase();
-  const type   = document.getElementById('type-filter')?.value || '';
-  const cons   = document.getElementById('consultant-filter')?.value || '';
-  const unit   = document.getElementById('unit-filter')?.value || '';
+  const search   = (document.getElementById('search-sales')?.value || '').toLowerCase();
+  const type     = document.getElementById('type-filter')?.value || '';
+  const cons     = document.getElementById('consultant-filter')?.value || '';
+  const unit     = document.getElementById('unit-filter')?.value || '';
+  const onlyRev  = document.getElementById('review-filter')?.checked || false;
   const isCoord = session.role === 'coordinator';
   let sales = getFilteredSales(null, isCoord ? {includeUnassigned:true} : null);
-  if (type)   sales = sales.filter(s=>s.type===type);
-  if (cons)   sales = sales.filter(s=>s.consultant===cons);
-  if (unit)   sales = sales.filter(s=>s.unit===unit);
+  if (type)    sales = sales.filter(s=>s.type===type);
+  if (cons)    sales = sales.filter(s=>s.consultant===cons);
+  if (unit)    sales = sales.filter(s=>s.unit===unit);
+  if (onlyRev) sales = sales.filter(s=>s.needs_review);
   if (search) sales = sales.filter(s=>
     s.student.toLowerCase().includes(search) ||
     s.id.toLowerCase().includes(search) ||
@@ -1311,14 +1357,19 @@ function renderSalesTable(sales) {
     if (isDisp) statusTag = ' <span class="tag tag-disputed" style="font-size:9px">Disputa</span>';
     else if (isRes) statusTag = ' <span class="tag tag-resolved" style="font-size:9px">Resolvida</span>';
 
+    const isEditOfReport = isManual && RAW_SALES.some(r => r.line_id === s.line_id);
+    const editBtn = `<button class="btn-edit-pw" onclick="openEditSaleModal('${s.line_id}','${s.unit}')" style="font-size:11px;padding:3px 8px;margin-right:4px">Editar</button>`;
+
     let actionCell = '<td></td>';
     if (isCoord) {
-      if (isManual) {
-        actionCell = `<td><span class="tag" style="background:#e3f2fd;color:#1565c0;font-size:11px;margin-right:6px">Manual</span><button class="btn-del" onclick="deleteAddedSale('${s.line_id}')" style="font-size:11px;padding:3px 8px">Excluir</button></td>`;
+      if (isEditOfReport) {
+        actionCell = `<td>${editBtn}<span class="tag" style="background:#ede7f6;color:#5e35b1;font-size:11px;margin-right:6px">Editada</span><button class="btn-del" onclick="deleteAddedSale('${s.line_id}')" style="font-size:11px;padding:3px 8px">Reverter</button></td>`;
+      } else if (isManual) {
+        actionCell = `<td>${editBtn}<span class="tag" style="background:#e3f2fd;color:#1565c0;font-size:11px;margin-right:6px">Manual</span><button class="btn-del" onclick="deleteAddedSale('${s.line_id}')" style="font-size:11px;padding:3px 8px">Excluir</button></td>`;
       } else if (isUnassigned || isAlreadyUnassigned) {
-        actionCell = `<td><button class="btn-sm btn-approve" onclick="reassignSale('${s.line_id}','${s.unit}')" style="font-size:11px">Reatribuir</button></td>`;
+        actionCell = `<td>${editBtn}<button class="btn-sm btn-approve" onclick="reassignSale('${s.line_id}','${s.unit}')" style="font-size:11px">Reatribuir</button></td>`;
       } else {
-        actionCell = `<td><button class="btn-sm btn-reject" onclick="unassignSale('${s.line_id}','${s.unit}')" style="font-size:11px">Remover Dono</button></td>`;
+        actionCell = `<td>${editBtn}<button class="btn-sm btn-reject" onclick="unassignSale('${s.line_id}','${s.unit}')" style="font-size:11px">Remover Dono</button></td>`;
       }
     } else {
       if (!isMe && !isDisp && !isRes && !isUnassigned) {
@@ -1793,7 +1844,17 @@ async function deleteAddedSale(lineId) {
   await sbDeleteManualSale(lineId);
 }
 
+let pendingEditLineId = null; // null = adicionando venda nova; caso contrário, editando esta linha
+
+function syncAddCommissionDefault() {
+  // Só sugere o valor padrão ao ADICIONAR uma venda nova — nunca sobrescreve ao editar
+  if (pendingEditLineId) return;
+  const type = document.getElementById('add-type').value;
+  document.getElementById('add-commission').value = type === 'new' ? '50' : '25';
+}
+
 function openAddSaleModal() {
+  pendingEditLineId = null;
   const allSales = getFilteredSales();
   const consultants = getConsultants(allSales.filter(s => s.consultant));
   const sel = document.getElementById('add-consultant');
@@ -1804,10 +1865,43 @@ function openAddSaleModal() {
   unitSel.innerHTML = UNIT_KEYS.map(u => `<option value="${u}">${UNIT_LABELS[u]||u}</option>`).join('');
   if (activeUnit) unitSel.value = activeUnit;
 
+  document.getElementById('add-sale-title').textContent = 'Adicionar Venda Manualmente';
+  document.getElementById('add-sale-sub').textContent = 'Use para incluir vendas que não apareceram nos relatórios.';
+  document.getElementById('add-sale-submit').textContent = 'Adicionar Venda';
   document.getElementById('add-student').value = '';
   document.getElementById('add-date').value = '';
   document.getElementById('add-contract').value = '';
   document.getElementById('add-type').value = 'new';
+  syncAddCommissionDefault();
+  openModal('modal-add-sale');
+}
+
+function openEditSaleModal(lineId, unit) {
+  const sale = getFilteredSales(null, {includeUnassigned:true}).find(s => s.line_id === lineId && s.unit === unit);
+  if (!sale) return;
+  pendingEditLineId = lineId;
+
+  const allSales = getFilteredSales(null, {includeUnassigned:true});
+  const consultants = getConsultants(allSales.filter(s => s.consultant));
+  const sel = document.getElementById('add-consultant');
+  sel.innerHTML = '<option value="">— Sem consultor —</option>' +
+    consultants.map(c => `<option value="${c}">${shortName(c)}</option>`).join('');
+  sel.value = sale.consultant || '';
+
+  const unitSel = document.getElementById('add-unit');
+  unitSel.innerHTML = UNIT_KEYS.map(u => `<option value="${u}">${UNIT_LABELS[u]||u}</option>`).join('');
+  unitSel.value = sale.unit;
+
+  document.getElementById('add-sale-title').textContent = 'Editar Venda';
+  document.getElementById('add-sale-sub').textContent = sale.needs_review
+    ? '⚠ Este plano não está na tabela de comissões — ajuste o valor correto abaixo.'
+    : 'Corrija os dados desta venda. A alteração fica registrada e sincronizada.';
+  document.getElementById('add-sale-submit').textContent = 'Salvar Alterações';
+  document.getElementById('add-student').value = sale.student;
+  document.getElementById('add-type').value = sale.type;
+  document.getElementById('add-date').value = sale.date;
+  document.getElementById('add-contract').value = sale.contract;
+  document.getElementById('add-commission').value = String(sale.commission).replace('.', ',');
   openModal('modal-add-sale');
 }
 
@@ -1818,16 +1912,27 @@ async function submitAddSale() {
   const unit       = document.getElementById('add-unit').value;
   const date       = document.getElementById('add-date').value.trim();
   const contract   = document.getElementById('add-contract').value.trim() || '—';
+  const commissionRaw = document.getElementById('add-commission').value.trim().replace(',', '.');
+  const commission = parseFloat(commissionRaw);
 
   if (!student || !date || !unit) { alert('Preencha aluno, data e unidade.'); return; }
+  if (!commissionRaw || isNaN(commission)) { alert('Informe um valor de comissão válido.'); return; }
 
-  const id = 'M' + Date.now();
+  // Ao editar, preserva o id de exibição e o papel (cadastro/conversão/etc) da linha original —
+  // só o line_id (chave técnica) e os campos editáveis mudam.
+  const original = pendingEditLineId
+    ? getFilteredSales(null, {includeUnassigned:true}).find(s => s.line_id === pendingEditLineId)
+    : null;
+  const lineId = pendingEditLineId || ('M' + Date.now());
+  const displayId = original ? original.id : lineId;
+  const role = original ? original.role : (consultant ? 'completo' : null);
   const newSale = {
-    id, line_id: id, student, consultant, type, role: consultant ? 'completo' : null,
-    commission: type === 'new' ? 50 : 25, date, contract,
-    unit, unit_label: UNIT_LABELS[unit] || unit, month: MONTH, _manual: true,
+    id: displayId, line_id: lineId, student, consultant, type, role,
+    commission, date, contract,
+    unit, unit_label: UNIT_LABELS[unit] || unit, month: MONTH, _manual: true, needs_review: false,
   };
   const overrides = loadOverrides();
+  overrides.added = overrides.added.filter(s => s.line_id !== lineId);
   overrides.added.push(newSale);
   saveOverridesLocal(overrides);
   closeModal('modal-add-sale');
