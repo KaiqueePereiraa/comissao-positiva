@@ -215,6 +215,7 @@ body{font-family:'Avenir Next','Avenir','Montserrat',sans-serif;background:var(-
 .tag-disputed{background:#fff3e0;color:#e65100}
 .tag-resolved{background:#f3e5f5;color:#6a1b9a}
 .tag-coord{background:#fce4ec;color:#880e4f;font-size:11px}
+.tag-type{background:#ede7f6;color:#4527a0}
 .btn-dispute{
   padding:4px 10px;background:transparent;border:1.5px solid var(--gray);
   border-radius:6px;font-family:inherit;font-size:12px;font-weight:700;
@@ -576,6 +577,16 @@ function roleFromLineId(lineId) {
   const m = /-(cad|conv|full|ren)$/.exec(String(lineId || ''));
   if (!m) return null;
   return {cad:'cadastro', conv:'conversao', full:'completo', ren:'consultor'}[m[1]];
+}
+
+// Rótulo do tipo de venda contestada — deriva do sufixo do sale_id (mesma lógica de
+// roleFromLineId), pra quem vai analisar a disputa saber se é cadastro/conversão/rematrícula
+// sem precisar abrir a venda original.
+function disputeTypeLabel(saleId) {
+  return {
+    cadastro: 'Cadastro (70%)', conversao: 'Conversão (30%)',
+    completo: 'Completo (100%)', consultor: 'Rematrícula (100%)',
+  }[roleFromLineId(saleId)] || 'Não identificado';
 }
 
 function dbRowToDispute(r) {
@@ -1568,6 +1579,7 @@ function renderDisputes(sales) {
         <div class="dispute-meta">
           <span class="tag tag-disputed">Em Disputa</span>
           <strong>#${d.displayId}</strong>
+          <span class="tag tag-type">${disputeTypeLabel(d.saleId)}</span>
           <span style="color:var(--mid);font-size:13px">${d.unit_label}</span>
         </div>
         <p style="font-size:14px"><strong>Venda atual:</strong> ${shortName(d.originalConsultant)}</p>
@@ -1601,6 +1613,7 @@ function renderDisputes(sales) {
         <div class="dispute-meta">
           <span class="tag" style="background:#e8f5e9;color:#2e7d32">Resolvida</span>
           <strong>#${d.displayId}</strong>
+          <span class="tag tag-type">${disputeTypeLabel(d.saleId)}</span>
           <span style="color:var(--mid);font-size:13px">${d.unit_label}</span>
         </div>
         <p style="font-size:14px"><strong>Decisão:</strong> ${d.action==='transfer'?`Transferida para ${shortName(d.claimant)}`:'Mantida com '+shortName(d.originalConsultant)}</p>
@@ -2051,6 +2064,7 @@ function openDefenseModal(idx) {
   const sale  = sales.find(s => s.line_id === d.saleId && s.unit === d.unit);
   document.getElementById('defense-sale-info').innerHTML = `
     <strong>Aluno:</strong> ${sale ? sale.student : d.displayId} (#${d.displayId})<br>
+    <strong>Tipo:</strong> <span class="tag tag-type">${disputeTypeLabel(d.saleId)}</span><br>
     <strong>Contestado por:</strong> ${shortName(d.claimant)}<br>
     <strong>Data:</strong> ${sale ? sale.date : '—'}
   `;
@@ -2078,7 +2092,8 @@ function openResolveModal(idx) {
   pendingResolveIdx = idx;
   const d = disputes[idx];
   document.getElementById('resolve-info').innerHTML = `
-    <strong>Venda #${d.displayId}</strong> — ${d.unit_label}<br><br>
+    <strong>Venda #${d.displayId}</strong> — ${d.unit_label}<br>
+    <strong>Tipo:</strong> <span class="tag tag-type" style="margin-top:4px">${disputeTypeLabel(d.saleId)}</span><br><br>
     <div style="background:#fff3e0;border-radius:8px;padding:10px 12px;margin-bottom:8px">
       <strong>⚔️ Contestação de ${shortName(d.claimant)}:</strong><br>
       <span style="font-size:13px">${d.reason}</span>
