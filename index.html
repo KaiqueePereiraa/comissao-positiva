@@ -1074,6 +1074,26 @@ function uniqueSaleCount(sales) {
   return new Set(sales.map(s=>s.type+':'+s.id)).size;
 }
 
+// Cadastro e conversão são contribuições distintas de uma mesma matrícula nova — sem
+// separar por role, "Novos" mistura quem cadastrou com quem converteu e não dá pra saber
+// a contribuição real de cada consultor. Rematrícula é sempre 100% de uma pessoa só.
+function roleBreakdown(sales) {
+  return {
+    cad:  sales.filter(s=>s.role==='cadastro').length,
+    conv: sales.filter(s=>s.role==='conversao').length,
+    full: sales.filter(s=>s.role==='completo').length,
+    ren:  sales.filter(s=>s.type==='renewal').length,
+  };
+}
+function roleBreakdownText(b) {
+  const parts = [];
+  if (b.cad)  parts.push(`${b.cad} cadastro${b.cad!==1?'s':''}`);
+  if (b.conv) parts.push(`${b.conv} conversão${b.conv!==1?'ões':''}`);
+  if (b.full) parts.push(`${b.full} venda${b.full!==1?'s':''} completa${b.full!==1?'s':''}`);
+  if (b.ren)  parts.push(`${b.ren} rematrícula${b.ren!==1?'s':''}`);
+  return parts.length ? parts.join(' · ') : 'Sem vendas no período';
+}
+
 function money(v) {
   v = Math.round(v * 100) / 100;
   return Number.isInteger(v) ? String(v) : v.toFixed(2).replace('.', ',');
@@ -1110,8 +1130,8 @@ function renderOverview(allSales) {
   // Consultor: mostra apenas seus próprios dados
   if (!isCoord) {
     const my = allSales.filter(s=>s.consultant===session.name);
-    const myNew  = my.filter(s=>s.type==='new').length;
-    const myRen  = my.filter(s=>s.type==='renewal').length;
+    const myBreak = roleBreakdown(my);
+    const myRen  = myBreak.ren;
     const myComm = calcCommission(my);
     const myDisp = disputes.filter(d=>d.claimant===session.name&&d.status==='open').length;
     const myUnits = [...new Set(my.map(s=>s.unit_label))].join(', ') || '—';
@@ -1128,7 +1148,9 @@ function renderOverview(allSales) {
       <div class="my-highlight-bar">
         <div class="mh-name">${session.name}</div>
         <div class="divider"></div>
-        <div class="mh-item"><div class="mh-val">${myNew}</div><div class="mh-lbl">Novos</div></div>
+        <div class="mh-item"><div class="mh-val">${myBreak.cad + myBreak.full}</div><div class="mh-lbl">Cadastros</div></div>
+        <div class="divider"></div>
+        <div class="mh-item"><div class="mh-val">${myBreak.conv}</div><div class="mh-lbl">Conversões</div></div>
         <div class="divider"></div>
         <div class="mh-item"><div class="mh-val">${myRen}</div><div class="mh-lbl">Rematrículas</div></div>
         <div class="divider"></div>
@@ -1143,9 +1165,14 @@ function renderOverview(allSales) {
           <div class="kpi-sub">${my.length} vendas</div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-label">Alunos Novos</div>
-          <div class="kpi-value">${myNew}</div>
-          <div class="kpi-sub">R$ ${money(calcCommission(my.filter(s=>s.type==='new')))}</div>
+          <div class="kpi-label">Cadastros</div>
+          <div class="kpi-value">${myBreak.cad + myBreak.full}</div>
+          <div class="kpi-sub">R$ ${money(calcCommission(my.filter(s=>s.role==='cadastro'||s.role==='completo')))} · 70% da venda nova</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Conversões</div>
+          <div class="kpi-value">${myBreak.conv}</div>
+          <div class="kpi-sub">R$ ${money(calcCommission(my.filter(s=>s.role==='conversao')))} · 30% da venda nova</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-label">Rematrículas</div>
@@ -1249,12 +1276,16 @@ function renderOverview(allSales) {
     </div>
   `;
 
-  const ranked = consultants.map(c => ({
-    name: shortName(c),
-    comm: calcCommission(salesForConsultant(c, sales)),
-    new:  salesForConsultant(c, sales).filter(s=>s.type==='new').length,
-    ren:  salesForConsultant(c, sales).filter(s=>s.type==='renewal').length,
-  })).sort((a,b)=>b.comm-a.comm);
+  const ranked = consultants.map(c => {
+    const b = roleBreakdown(salesForConsultant(c, sales));
+    return {
+      name: shortName(c),
+      comm: calcCommission(salesForConsultant(c, sales)),
+      cad:  b.cad + b.full,
+      conv: b.conv,
+      ren:  b.ren,
+    };
+  }).sort((a,b)=>b.comm-a.comm);
 
   const ctx1 = document.getElementById('chart-ranking').getContext('2d');
   chartRanking = new Chart(ctx1, {
@@ -1291,8 +1322,9 @@ function renderOverview(allSales) {
       data:{
         labels: ranked.map(r=>r.name),
         datasets:[
-          {label:'Novos',      data:ranked.map(r=>r.new),backgroundColor:'#34425C',borderRadius:4},
-          {label:'Rematrícula',data:ranked.map(r=>r.ren),backgroundColor:'#BEF575',borderRadius:4},
+          {label:'Cadastros',  data:ranked.map(r=>r.cad), backgroundColor:'#34425C',borderRadius:4},
+          {label:'Conversões', data:ranked.map(r=>r.conv),backgroundColor:'#7C9CBF',borderRadius:4},
+          {label:'Rematrícula',data:ranked.map(r=>r.ren), backgroundColor:'#BEF575',borderRadius:4},
         ]
       },
       options:{responsive:true,plugins:{legend:{position:'bottom'}},scales:{x:{stacked:false},y:{beginAtZero:true}}}
@@ -1511,8 +1543,7 @@ function renderRanking(sales) {
     return {
       name: c,
       comm: calcCommission(cs),
-      new:  cs.filter(s=>s.type==='new').length,
-      ren:  cs.filter(s=>s.type==='renewal').length,
+      breakdown: roleBreakdown(cs),
       total: cs.length,
     };
   }).sort((a,b)=>b.comm-a.comm);
@@ -1532,7 +1563,7 @@ function renderRanking(sales) {
               <div class="rank-name">${r.name.split(' ').slice(0,2).join(' ')}
                 ${r.name===session.name?'<span class="tag" style="background:#e8f5e9;color:#2e7d32;font-size:10px">Você</span>':''}
               </div>
-              <div class="rank-detail">${r.new} novo${r.new!==1?'s':''} · ${r.ren} rematrícula${r.ren!==1?'s':''}</div>
+              <div class="rank-detail">${roleBreakdownText(r.breakdown)}</div>
             </div>
             <div class="rank-bar-wrap">
               <div class="rank-bar" style="width:${Math.round(r.comm/maxComm*100)}%"></div>
