@@ -708,6 +708,19 @@ async function sbDeleteManualSale(id) {
   return checkSbResult(res, 'exclusão');
 }
 
+// Operações individuais — usuários/senhas. Só o hash (calculado antes de chamar aqui)
+// trafega e é gravado — o texto puro da senha nunca sai do navegador de quem a digitou.
+async function sbUpsertUser(login, u) {
+  const res = await db.from('user_credentials').upsert({
+    login, name: u.name, role: u.role, pw_hash: u.pw, updated_at: new Date().toISOString(),
+  }, { onConflict: 'login' });
+  return checkSbResult(res, 'usuário/senha');
+}
+async function sbDeleteUser(login) {
+  const res = await db.from('user_credentials').delete().eq('login', login);
+  return checkSbResult(res, 'remoção de usuário');
+}
+
 // Realtime: qualquer mudança em qualquer tabela re-sincroniza e re-renderiza
 function setupRealtime() {
   db.channel('positiva-realtime')
@@ -715,6 +728,7 @@ function setupRealtime() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'unassigned_sales' }, handleRemoteChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'manual_sales' }, handleRemoteChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, handleRemoteChange)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'user_credentials' }, handleRemoteChange)
     .subscribe();
 }
 
@@ -723,6 +737,7 @@ async function handleRemoteChange() {
   clearTimeout(_realtimeTimer);
   _realtimeTimer = setTimeout(async () => {
     await syncFromSupabase();
+    users = await loadUsers();
     destroyCharts();
     buildSectionNav();
     if (session.role !== 'coordinator' && activeSection === 'sales' && !salesVisibleToConsultants) {
@@ -795,29 +810,45 @@ async function loadUsers() {
   const savedVer = localStorage.getItem(USERS_VER);
   const saved    = localStorage.getItem(USERS_KEY);
 
+  let localUsers;
   if (saved && savedVer === USERS_VER_ID) {
-    const parsed = JSON.parse(saved);
-    if (!parsed.coordenador) parsed.coordenador = { name:'Coordenador', role:'coordinator', pw: DEFAULT_COORD_HASH };
-    return parsed;
+    localUsers = JSON.parse(saved);
+    if (!localUsers.coordenador) localUsers.coordenador = { name:'Coordenador', role:'coordinator', pw: DEFAULT_COORD_HASH };
+  } else {
+    // Versão nova ou sem dados: regenera logins a partir dos dados brutos, preservando senhas customizadas
+    const consultants = [...new Set(RAW_SALES.map(s => s.consultant))].filter(Boolean);
+    const oldUsers = saved ? JSON.parse(saved) : {};
+    localUsers = {};
+    localUsers['coordenador'] = oldUsers['coordenador'] || { name:'Coordenador', role:'coordinator', pw: DEFAULT_COORD_HASH };
+
+    for (const name of consultants) {
+      const parts = name.trim().split(/\s+/);
+      const login = (parts[0] + (parts.length > 1 ? parts[parts.length - 1] : ''))
+        .toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+      const oldEntry = Object.values(oldUsers).find(u => u.name === name);
+      localUsers[login] = { name, role:'consultant', pw: oldEntry ? oldEntry.pw : DEFAULT_CONSULTANT_HASH };
+    }
+    localStorage.setItem(USERS_VER, USERS_VER_ID);
   }
 
-  // Versão nova ou sem dados: regenera logins a partir dos dados brutos, preservando senhas customizadas
-  const consultants = [...new Set(RAW_SALES.map(s => s.consultant))].filter(Boolean);
-  const oldUsers = saved ? JSON.parse(saved) : {};
-  const users = {};
-  users['coordenador'] = oldUsers['coordenador'] || { name:'Coordenador', role:'coordinator', pw: DEFAULT_COORD_HASH };
+  // Senhas sincronizam pelo Supabase — qualquer computador enxerga a mesma senha, sempre
+  // atualizada. Só o hash (SHA-256) trafega e é gravado; a senha em texto puro nunca sai
+  // do navegador de quem a digitou. O Supabase é a fonte da verdade: sobrescreve o cache
+  // local. Usuários que só existem localmente (recém-gerados, antes de sincronizar) sobem
+  // pro banco pra aparecerem nos outros computadores também.
+  try {
+    const { data, error } = await db.from('user_credentials').select('*');
+    if (!error && data) {
+      const remoteLogins = new Set(data.map(r => r.login));
+      data.forEach(r => { localUsers[r.login] = { name: r.name, role: r.role, pw: r.pw_hash }; });
+      for (const [login, u] of Object.entries(localUsers)) {
+        if (!remoteLogins.has(login)) sbUpsertUser(login, u);
+      }
+    }
+  } catch(e) { console.warn('User sync failed (rode a migração user_credentials?)', e); }
 
-  for (const name of consultants) {
-    const parts = name.trim().split(/\s+/);
-    const login = (parts[0] + (parts.length > 1 ? parts[parts.length - 1] : ''))
-      .toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
-    const oldEntry = Object.values(oldUsers).find(u => u.name === name);
-    users[login] = { name, role:'consultant', pw: oldEntry ? oldEntry.pw : DEFAULT_CONSULTANT_HASH };
-  }
-
-  saveUsers(users);
-  localStorage.setItem(USERS_VER, USERS_VER_ID);
-  return users;
+  saveUsers(localUsers);
+  return localUsers;
 }
 
 function saveUsers(u) { localStorage.setItem(USERS_KEY, JSON.stringify(u)); }
@@ -1882,13 +1913,15 @@ async function addUser() {
   users[login] = {name, role:'consultant', pw: await hashPw(pw)};
   saveUsers(users);
   renderAdmin();
+  await sbUpsertUser(login, users[login]);
 }
 
-function deleteUser(login) {
+async function deleteUser(login) {
   if (!confirm('Remover acesso de '+users[login].name+'?')) return;
   delete users[login];
   saveUsers(users);
   renderAdmin();
+  await sbDeleteUser(login);
 }
 
 function openPwModal(login) {
@@ -1904,6 +1937,7 @@ async function saveNewPw() {
   saveUsers(users);
   closeModal('modal-pw');
   renderAdmin();
+  await sbUpsertUser(pendingPwLogin, users[pendingPwLogin]);
 }
 
 // ══════════════════════════════════════════════
