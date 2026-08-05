@@ -1013,6 +1013,16 @@ function buildSectionNav() {
   nav.innerHTML = '';
 
   const showSales = session.role === 'coordinator' || salesVisibleToConsultants;
+
+  // Trava central: se a config de visibilidade chegar do Supabase DEPOIS de o consultor já
+  // ter entrado em "Vendas" (ex: clicou durante a janela em que o navegador ainda usava o
+  // valor antigo em cache, antes de sincronizar), o painel ficava "grudado" aberto mesmo
+  // sem o botão aparecer no menu. Corrigindo aqui, toda vez que o menu é reconstruído, cobre
+  // todos os pontos de chamada (boot, realtime, troca de config) de uma vez só.
+  if (!showSales && activeSection === 'sales') {
+    activeSection = 'overview';
+  }
+
   const sections = [
     {id:'overview',  label:'Visão Geral'},
     ...(showSales ? [{id:'sales', label:'Vendas'}] : []),
