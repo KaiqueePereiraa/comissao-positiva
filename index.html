@@ -910,6 +910,10 @@ async function doLogin() {
 function doLogout() {
   localStorage.removeItem(SESSION_KEY);
   session = null;
+  // A aba que estava aberta é do usuário que está saindo — não pode vazar pro próximo
+  // login nesta mesma página (ex: coordenador em "Gerenciar Usuários" desloga e um
+  // consultor entra sem recarregar: sem isso, o painel de admin ficava aberto pra ele).
+  activeSection = 'overview';
   document.getElementById('app').style.display = 'none';
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('inp-pass').value = '';
@@ -1147,10 +1151,31 @@ function roleLabel(s) {
 // ══════════════════════════════════════════════
 //  RENDER SECTION
 // ══════════════════════════════════════════════
+// Trava de verdade (não só esconder o botão do menu): decide aqui, no ponto que
+// efetivamente desenha o conteúdo, se a sessão atual pode ver esta seção. Cobre
+// qualquer jeito de o app chegar num id indevido (estado antigo vazando de outra
+// sessão, corrida de sincronização, bug futuro) — nunca desenha dado sensível sem
+// checar de novo, mesmo que o menu já devesse ter escondido o botão.
+function sectionAllowed(id) {
+  const isCoord = session.role === 'coordinator';
+  if (id === 'admin') return isCoord;
+  if (id === 'sales')  return isCoord || salesVisibleToConsultants;
+  return true;
+}
+
 function renderSection(id) {
   ['overview','sales','ranking','disputes','compare','admin'].forEach(p => {
     document.getElementById('panel-'+p).classList.toggle('active', p===id);
   });
+
+  if (!sectionAllowed(id)) {
+    document.getElementById('panel-'+id).innerHTML = `
+      <div class="empty-state">
+        <div class="icon">🔒</div>
+        <p>Esta área não está disponível para o seu usuário.</p>
+      </div>`;
+    return;
+  }
 
   const sales = getFilteredSales();
   if (id === 'overview')  renderOverview(sales);
