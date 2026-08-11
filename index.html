@@ -1133,7 +1133,7 @@ function roleBreakdown(sales) {
 function roleBreakdownText(b) {
   const parts = [];
   if (b.cad)  parts.push(`${b.cad} cadastro${b.cad!==1?'s':''}`);
-  if (b.conv) parts.push(`${b.conv} conversão${b.conv!==1?'ões':''}`);
+  if (b.conv) parts.push(`${b.conv} convers${b.conv!==1?'ões':'ão'}`);
   if (b.full) parts.push(`${b.full} venda${b.full!==1?'s':''} completa${b.full!==1?'s':''}`);
   if (b.ren)  parts.push(`${b.ren} rematrícula${b.ren!==1?'s':''}`);
   return parts.length ? parts.join(' · ') : 'Sem vendas no período';
@@ -1453,7 +1453,8 @@ function renderSales(sales) {
             <input type="checkbox" id="review-filter" onchange="applyFilters()"> Só revisar (${reviewCount})
           </label>` : ''}
           ${isCoord ? `<button class="btn-add" onclick="openAddSaleModal()" style="padding:8px 16px;font-size:13px">+ Adicionar Venda</button>
-          <button onclick="exportSalesCSV()" style="padding:8px 16px;font-size:13px;background:#e8f5e9;color:#2e7d32;border:none;border-radius:8px;font-family:inherit;font-weight:800;cursor:pointer">⬇ Exportar Planilha</button>` : ''}
+          <button onclick="exportSalesCSV()" style="padding:8px 16px;font-size:13px;background:#e8f5e9;color:#2e7d32;border:none;border-radius:8px;font-family:inherit;font-weight:800;cursor:pointer">⬇ Exportar Planilha</button>
+          <button onclick="exportPaymentReport()" style="padding:8px 16px;font-size:13px;background:#e3f2fd;color:#1565c0;border:none;border-radius:8px;font-family:inherit;font-weight:800;cursor:pointer">📄 Relatório de Pagamento</button>` : ''}
         </div>
       </div>
       <div id="sales-table-body"></div>
@@ -2264,6 +2265,152 @@ function exportSalesCSV() {
   a.download = `Comissao_${MONTH.replace('/','_')}_${unit}.csv`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+// ══════════════════════════════════════════════
+//  RELATÓRIO DE PAGAMENTO (financeiro)
+// ══════════════════════════════════════════════
+// Documento imprimível agrupado por pessoa: quanto pagar a cada um e a justificativa
+// venda a venda. Mesma fonte de dados do CSV (mês/unidade ativos, manuais e disputas
+// resolvidas incluídas). Coordenador apenas — checado aqui além do botão escondido.
+function exportPaymentReport() {
+  if (session.role !== 'coordinator') return;
+  const sales = getFilteredSales(null, {includeUnassigned: false});
+  if (!sales.length) { alert('Nenhuma venda para gerar relatório.'); return; }
+
+  const esc = v => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const brl = v => 'R$ ' + (Math.round(v * 100) / 100).toFixed(2).replace('.', ',');
+  const origem = s => {
+    const d = disputes.find(d => d.saleId === s.line_id && d.unit === s.unit && d.status === 'resolved');
+    return s._manual ? 'Manual' : (d ? 'Disputa resolvida' : 'Relatório');
+  };
+
+  const consultants = getConsultants(sales)
+    .map(name => {
+      const list = salesForConsultant(name, sales);
+      return {name, sales: list, total: calcCommission(list), b: roleBreakdown(list)};
+    })
+    .sort((a, b) => b.total - a.total);
+  const grandTotal = calcCommission(sales);
+
+  const unitLabel = activeUnit ? UNIT_LABELS[activeUnit] : 'Todas as Unidades';
+  const logoSrc   = document.querySelector('.logo-mark img')?.src || '';
+  const now       = new Date();
+  const genAt     = now.toLocaleDateString('pt-BR') + ' às ' + now.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+
+  const summaryRows = consultants.map(c => `
+      <tr>
+        <td>${esc(c.name)}</td>
+        <td class="num">${c.b.cad}</td>
+        <td class="num">${c.b.conv}</td>
+        <td class="num">${c.b.full}</td>
+        <td class="num">${c.b.ren}</td>
+        <td class="num strong">${brl(c.total)}</td>
+      </tr>`).join('');
+
+  const detailSections = consultants.map(c => `
+    <section class="person">
+      <div class="person-head">
+        <div>
+          <h3>${esc(c.name)}</h3>
+          <p>${roleBreakdownText(c.b)}</p>
+        </div>
+        <div class="person-total">${brl(c.total)}</div>
+      </div>
+      <table>
+        <thead><tr><th>Aluno</th><th>Papel</th><th>Contrato / Plano</th><th>Data</th><th>Unidade</th><th>Origem</th><th class="num">Valor</th></tr></thead>
+        <tbody>
+          ${c.sales.map(s => `
+          <tr>
+            <td>${esc(s.student)}</td>
+            <td>${roleLabel(s) || 'Rematrícula (100%)'}</td>
+            <td>${esc(s.contract)}</td>
+            <td>${esc(s.date)}</td>
+            <td>${esc(s.unit_label)}</td>
+            <td>${origem(s)}</td>
+            <td class="num">${brl(s.commission)}</td>
+          </tr>`).join('')}
+          <tr class="subtotal"><td colspan="6">Total a pagar — ${esc(shortName(c.name))}</td><td class="num">${brl(c.total)}</td></tr>
+        </tbody>
+      </table>
+    </section>`).join('');
+
+  const doc = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Relatório de Pagamento — ${esc(activeMonth)} — ${esc(unitLabel)}</title>
+<style>
+  @page { size: A4; margin: 14mm; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Avenir Next','Avenir','Montserrat',sans-serif; color:#212B37; font-size:12px; padding:24px; }
+  .doc-head { display:flex; align-items:center; gap:16px; border-bottom:3px solid #BEF575; padding-bottom:14px; margin-bottom:18px; }
+  .doc-head img { height:52px; }
+  .doc-head h1 { font-size:19px; font-weight:800; }
+  .doc-head .meta { font-size:12px; color:#788192; margin-top:3px; }
+  h2 { font-size:14px; font-weight:800; margin:20px 0 8px; }
+  table { width:100%; border-collapse:collapse; }
+  th { background:#EEF1F4; text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.4px; color:#34425C; padding:6px 8px; }
+  td { padding:5px 8px; border-bottom:1px solid #EEF1F4; vertical-align:top; }
+  .num { text-align:right; white-space:nowrap; }
+  .strong { font-weight:800; }
+  .grand td { background:#212B37; color:#fff; font-weight:800; border:none; }
+  .person { margin-top:18px; break-inside:avoid; }
+  .person-head { display:flex; justify-content:space-between; align-items:center; background:#34425C; color:#fff; border-radius:8px 8px 0 0; padding:9px 12px; }
+  .person-head h3 { font-size:13.5px; font-weight:800; }
+  .person-head p { font-size:11px; color:#BBC0C9; margin-top:2px; }
+  .person-total { font-size:15px; font-weight:800; color:#BEF575; white-space:nowrap; }
+  .subtotal td { background:#F4F8EC; font-weight:800; border:none; }
+  .rules { margin-top:26px; font-size:11px; color:#788192; border-top:1px solid #BBC0C9; padding-top:10px; line-height:1.5; }
+  .signatures { display:flex; gap:40px; margin-top:44px; }
+  .signatures div { flex:1; border-top:1px solid #212B37; padding-top:6px; font-size:11px; text-align:center; color:#34425C; }
+  .print-btn { position:fixed; top:14px; right:14px; padding:10px 18px; background:#212B37; color:#fff; border:none; border-radius:8px; font-family:inherit; font-size:13px; font-weight:800; cursor:pointer; }
+  @media print { body { padding:0; } .print-btn { display:none; } }
+</style>
+</head>
+<body>
+<button class="print-btn" onclick="window.print()">🖨 Imprimir / Salvar PDF</button>
+
+<div class="doc-head">
+  ${logoSrc ? `<img src="${logoSrc}" alt="Positiva">` : ''}
+  <div>
+    <h1>Relatório de Pagamento de Comissões</h1>
+    <div class="meta">${esc(unitLabel)} · Referência: ${esc(activeMonth)} · Gerado em ${genAt} por ${esc(session.name)}</div>
+  </div>
+</div>
+
+<h2>Resumo — quanto pagar a cada pessoa</h2>
+<table>
+  <thead><tr><th>Consultor</th><th class="num">Cadastros</th><th class="num">Conversões</th><th class="num">Completas</th><th class="num">Rematrículas</th><th class="num">Total a Pagar</th></tr></thead>
+  <tbody>
+    ${summaryRows}
+    <tr class="grand"><td colspan="5">TOTAL GERAL — ${esc(activeMonth)}</td><td class="num">${brl(grandTotal)}</td></tr>
+  </tbody>
+</table>
+
+<h2>Detalhamento por pessoa</h2>
+${detailSections}
+
+<div class="rules">
+  <strong>Regras de comissão:</strong> matrículas novas têm a comissão dividida em 70% para quem fez o cadastro
+  e 30% para quem fez a conversão (quando a mesma pessoa faz as duas etapas, recebe as duas partes).
+  Rematrículas pagam valor integral ao consultor responsável. Vendas com origem "Manual" foram adicionadas
+  pela coordenação; "Disputa resolvida" indica venda reatribuída após contestação analisada no sistema.
+</div>
+
+<div class="signatures">
+  <div>Coordenação</div>
+  <div>Financeiro</div>
+</div>
+
+<script>window.onload = () => setTimeout(() => window.print(), 500);<\/script>
+</body>
+</html>`;
+
+  const w = window.open('', '_blank');
+  if (!w) { alert('O navegador bloqueou a janela do relatório. Permita pop-ups para este site e tente de novo.'); return; }
+  w.document.write(doc);
+  w.document.close();
 }
 
 // ══════════════════════════════════════════════
