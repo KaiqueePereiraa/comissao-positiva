@@ -1453,7 +1453,6 @@ function renderSales(sales) {
             <input type="checkbox" id="review-filter" onchange="applyFilters()"> Só revisar (${reviewCount})
           </label>` : ''}
           ${isCoord ? `<button class="btn-add" onclick="openAddSaleModal()" style="padding:8px 16px;font-size:13px">+ Adicionar Venda</button>
-          <button onclick="exportSalesCSV()" style="padding:8px 16px;font-size:13px;background:#e8f5e9;color:#2e7d32;border:none;border-radius:8px;font-family:inherit;font-weight:800;cursor:pointer">⬇ Exportar Planilha</button>
           <button onclick="exportPaymentReport()" style="padding:8px 16px;font-size:13px;background:#e3f2fd;color:#1565c0;border:none;border-radius:8px;font-family:inherit;font-weight:800;cursor:pointer">📄 Relatório de Pagamento</button>` : ''}
         </div>
       </div>
