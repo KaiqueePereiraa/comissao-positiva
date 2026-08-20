@@ -543,6 +543,18 @@ select:focus{border-color:var(--navy)}
   </div>
 </div>
 
+<!-- MODAL DETALHE DA SEMANA (Semanal) -->
+<div class="modal-overlay" id="modal-week-detail">
+  <div class="modal" style="max-width:640px">
+    <h3 id="week-detail-title">Detalhe da semana</h3>
+    <div class="modal-info" id="week-detail-info"></div>
+    <div id="week-detail-body"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('modal-week-detail')">Fechar</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL TROCAR SENHA -->
 <div class="modal-overlay" id="modal-pw">
   <div class="modal">
@@ -1709,15 +1721,37 @@ function weekBonusCard(unit) {
     </div>`;
 }
 
-function weekCardHtml(w, unit) {
+// Semana 'closed' (já terminou), 'current' (hoje cai dentro dela) ou 'upcoming' (ainda
+// não começou) — evita que uma semana em andamento com poucos contratos pareça "fechada
+// em 0%", quando na verdade ainda dá tempo de bater a meta.
+function dateOnly(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+function weekStatus(range) {
+  const today = dateOnly(new Date());
+  if (today > range.end) return 'closed';
+  if (today < range.start) return 'upcoming';
+  return 'current';
+}
+function weekStatusBadge(status) {
+  if (status === 'current')  return '<span class="tag" style="background:#e3f2fd;color:#1565c0;font-size:10px;margin-left:6px">Em andamento</span>';
+  if (status === 'upcoming') return '<span class="tag" style="background:#f5f5f5;color:#999;font-size:10px;margin-left:6px">Ainda não começou</span>';
+  return '';
+}
+
+function weekCardHtml(w, unit, name) {
   const fmt = d => d.toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'});
   const pctLabel = w.pct === 0 ? '0%' : Math.round(w.pct*100) + '%';
+  const parts = [];
+  if (w.typeBreak.novos)        parts.push(`${w.typeBreak.novos} novo${w.typeBreak.novos!==1?'s':''}`);
+  if (w.typeBreak.rematriculas) parts.push(`${w.typeBreak.rematriculas} rematríc.`);
+  if (w.typeBreak.renovacoes)   parts.push(`${w.typeBreak.renovacoes} renov.`);
+  const breakdown = parts.length ? ` (${parts.join(' · ')})` : '';
   return `
     <div class="kpi-card ${w.pct >= 1 ? 'highlight' : ''}">
-      <div class="kpi-label">Semana ${w.wk} · ${fmt(w.range.start)}–${fmt(w.range.end)}</div>
+      <div class="kpi-label">Semana ${w.wk} · ${fmt(w.range.start)}–${fmt(w.range.end)}${weekStatusBadge(w.status)}</div>
       <div class="kpi-value">R$ ${money(w.earned)}</div>
-      <div class="kpi-sub">${w.count} contrato${w.count!==1?'s':''} · ${w.label} (${pctLabel})
+      <div class="kpi-sub">${w.count} contrato${w.count!==1?'s':''}${breakdown} · ${w.label} (${pctLabel})
         ${w.toNext > 0 ? `<br>faltam ${w.toNext} pra próxima faixa` : ''}</div>
+      ${w.hasAny ? `<button class="btn-sm" style="margin-top:10px;background:#eef1f4;color:var(--navy)" onclick="openWeekDetailModal('${name}','${unit}',${w.wk})">Ver alunos</button>` : ''}
     </div>`;
 }
 
@@ -1726,21 +1760,69 @@ function personWeeklyRows(name, unit, rawSales, priced) {
   if (!bounds) return [];
   return bounds.map((range, i) => {
     const wk = i + 1;
-    const count = rawSales.filter(s =>
-      s.consultant === name && s.unit === unit &&
-      (s.role==='cadastro'||s.role==='consultor'||s.role==='completo') &&
-      weekIndexForSale(s) === wk
-    ).length;
+    const weekSales = rawSales.filter(s => s.consultant === name && s.unit === unit && weekIndexForSale(s) === wk);
+    const metaSales = weekSales.filter(s => s.role==='cadastro'||s.role==='consultor'||s.role==='completo');
     const earned = priced
       .filter(s => s.consultant === name && s.unit === unit && weekIndexForSale(s) === wk)
       .reduce((a,s) => a + s.commission, 0);
+    const typeBreak = {
+      novos:        metaSales.filter(s=>s.type==='new').length,
+      rematriculas: metaSales.filter(s=>s.type==='renewal' && s.source!=='filtro').length,
+      renovacoes:   metaSales.filter(s=>s.type==='renewal' && s.source==='filtro').length,
+    };
     return {
-      wk, range, count, earned,
-      pct: weeklyTierPct(unit, count),
-      label: weekTierLabel(unit, count),
-      toNext: weekTierNextGoal(unit, count),
+      wk, range, earned, typeBreak,
+      count: metaSales.length,
+      hasAny: weekSales.length > 0,
+      pct: weeklyTierPct(unit, metaSales.length),
+      label: weekTierLabel(unit, metaSales.length),
+      toNext: weekTierNextGoal(unit, metaSales.length),
+      status: weekStatus(range),
     };
   });
+}
+
+// Modal com a lista de alunos de uma pessoa numa semana — inclui também as conversões
+// dela (não contam pra meta, mas entram no valor ganho), marcadas à parte.
+function openWeekDetailModal(name, unit, wk) {
+  const bounds = weekBoundsForMonth(activeMonth);
+  if (!bounds) return;
+  const range = bounds[wk - 1];
+  const raw    = getFilteredSales(null, {includeUnassigned: false});
+  const priced = pricedSales(raw);
+  const weekSales   = raw.filter(s => s.consultant === name && s.unit === unit && weekIndexForSale(s) === wk);
+  const weekPriced  = priced.filter(s => s.consultant === name && s.unit === unit && weekIndexForSale(s) === wk);
+  const metaCount   = weekSales.filter(s => s.role==='cadastro'||s.role==='consultor'||s.role==='completo').length;
+  const earned      = weekPriced.reduce((a,s) => a + s.commission, 0);
+  const pct         = weeklyTierPct(unit, metaCount);
+  const fmt = d => d.toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'});
+
+  document.getElementById('week-detail-title').textContent = `${shortName(name)} — Semana ${wk}`;
+  document.getElementById('week-detail-info').innerHTML = `
+    <strong>Período:</strong> ${fmt(range.start)}–${fmt(range.end)}${weekStatusBadge(weekStatus(range))}<br>
+    <strong>${weekTierLabel(unit, metaCount)}</strong> (${Math.round(pct*100)}%) · <strong>${metaCount}</strong> contrato${metaCount!==1?'s':''} pra meta ·
+    <strong>R$ ${money(earned)}</strong> ganho na semana
+  `;
+
+  const rows = weekSales.map(s => {
+    const isMeta = s.role==='cadastro'||s.role==='consultor'||s.role==='completo';
+    const p = weekPriced.find(x => x.line_id === s.line_id);
+    const typeTxt = s.type === 'new' ? 'Novo' : (s.source === 'filtro' ? 'Renovação' : 'Rematrícula');
+    return `<tr>
+      <td>${s.student}</td>
+      <td>${typeTxt}</td>
+      <td>${roleLabel(s)}${!isMeta ? '<div style="font-size:10px;color:var(--mid)">não conta pra meta</div>' : ''}</td>
+      <td style="text-align:right">R$ ${money(p ? p.commission : s.commission)}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('week-detail-body').innerHTML = weekSales.length ? `
+    <table class="data-table">
+      <thead><tr><th>Aluno</th><th>Tipo</th><th>Papel</th><th style="text-align:right">Valor</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>` : '<div class="empty-state" style="padding:16px 0"><p>Nenhuma venda dessa pessoa nessa semana.</p></div>';
+
+  openModal('modal-week-detail');
 }
 
 function renderWeekly(rawSales) {
@@ -1758,11 +1840,12 @@ function renderWeekly(rawSales) {
   const bonusCardsHtml = unitsInView.map(weekBonusCard).join('');
 
   if (!isCoord) {
-    const myWeeks = personWeeklyRows(session.name, activeUnit || (rawSales.find(s=>s.consultant===session.name)?.unit), rawSales, priced);
+    const myUnit = activeUnit || (rawSales.find(s=>s.consultant===session.name)?.unit);
+    const myWeeks = personWeeklyRows(session.name, myUnit, rawSales, priced);
     el.innerHTML = `
       <p class="page-title">Minha Semana</p>
-      <p class="page-sub">${activeMonth} · meta contada pelos contratos que você cadastrou (ou rematrícula sua)</p>
-      <div class="kpi-grid">${myWeeks.map(w => weekCardHtml(w, activeUnit)).join('')}</div>
+      <p class="page-sub">${activeMonth} · meta contada pelos contratos que você cadastrou (ou rematrícula/renovação sua)</p>
+      <div class="kpi-grid">${myWeeks.map(w => weekCardHtml(w, myUnit, session.name)).join('')}</div>
       <p class="page-title" style="font-size:17px;margin-top:8px">Bônus de Equipe</p>
       <p class="page-sub">Coletivo — pago junto com a comissão individual</p>
       <div class="kpi-grid">${bonusCardsHtml}</div>
@@ -1770,7 +1853,7 @@ function renderWeekly(rawSales) {
     return;
   }
 
-  // Coordenador: todo mundo lado a lado, por unidade
+  // Coordenador: todo mundo lado a lado, por unidade — clique numa célula pra ver quem são
   const unitTitle = activeUnit ? UNIT_LABELS[activeUnit] : 'Todas as Unidades';
   const rowsHtml = unitsInView.map(uk => {
     const consultants = getConsultants(rawSales.filter(s => s.unit === uk));
@@ -1779,16 +1862,17 @@ function renderWeekly(rawSales) {
       const weeks = personWeeklyRows(name, uk, rawSales, priced);
       const total = weeks.reduce((a,w) => a + w.earned, 0);
       const weekCells = weeks.map(w => `
-        <td>
+        <td ${w.hasAny ? `style="cursor:pointer" onclick="openWeekDetailModal('${name}','${uk}',${w.wk})"` : ''}>
           <span class="tag" style="background:${w.pct>=1?'#e8f5e9':w.pct>0?'#fff3e0':'#ffebee'};color:${w.pct>=1?'#2e7d32':w.pct>0?'#e65100':'#c62828'}">
             ${w.count} · ${Math.round(w.pct*100)}%
-          </span>
+          </span>${weekStatusBadge(w.status)}
         </td>`).join('');
       return `<tr><td>${shortName(name)}</td>${weekCells}<td><strong>R$ ${money(total)}</strong></td></tr>`;
     }).join('');
     return `
       <div class="table-card">
         <h3>${UNIT_LABELS[uk]||uk}</h3>
+        <p style="font-size:12px;color:var(--mid);margin-bottom:12px">Clique numa célula pra ver quem são os alunos daquela semana.</p>
         <table class="data-table">
           <thead><tr><th>Consultor</th><th>Sem. 1</th><th>Sem. 2</th><th>Sem. 3</th><th>Sem. 4</th><th>Total no mês</th></tr></thead>
           <tbody>${bodyRows}</tbody>
@@ -1798,7 +1882,7 @@ function renderWeekly(rawSales) {
 
   el.innerHTML = `
     <p class="page-title">Semanal — ${unitTitle}</p>
-    <p class="page-sub">${activeMonth} · meta semanal (segunda a domingo) por pessoa, contada pelos cadastros/rematrículas dela</p>
+    <p class="page-sub">${activeMonth} · meta semanal (segunda a domingo) por pessoa, contada pelos cadastros/rematrículas/renovações dela</p>
     <div class="kpi-grid">${bonusCardsHtml}</div>
     ${rowsHtml || '<div class="empty-state"><div class="icon">📭</div><p>Nenhum consultor com vendas no período.</p></div>'}
   `;
