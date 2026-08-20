@@ -816,6 +816,7 @@ const MONTH      = "Agosto/2026";
 const UNIT_KEYS  = ["club", "laranjeiras", "republica"];
 const UNIT_LABELS= {"laranjeiras": "Positiva Acqua Laranjeiras", "republica": "Positiva Acqua República", "club": "Positiva Club"};
 const ALL_MONTHS = ["Agosto/2026"];
+const DEFAULT_CONSULTANT = "SUPORTEEVO - IA";
 const DEFAULT_COORD_HASH      = "bc0ec9409ecd1ee3839dead6cee8ad15ab1c1968943141dbde0541ea9460a605";
 const DEFAULT_CONSULTANT_HASH = "6b964c686edd6f1d1f19b4e102d609817f9ed086694ba2be72c967749925e9c0";
 
@@ -825,6 +826,7 @@ const DEFAULT_CONSULTANT_HASH = "6b964c686edd6f1d1f19b4e102d609817f9ed086694ba2b
 // Retorna "PrimeiroNome Sobrenome" para diferenciar homônimos
 function shortName(fullName) {
   if (!fullName) return '—';
+  if (fullName === DEFAULT_CONSULTANT) return DEFAULT_CONSULTANT;   // sempre por extenso, maiúsculo
   const parts = fullName.trim().split(/\s+/);
   if (parts.length <= 2) return parts.map(p => p[0] + p.slice(1).toLowerCase()).join(' ');
   const first = parts[0][0] + parts[0].slice(1).toLowerCase();
@@ -2218,7 +2220,7 @@ function renderRanking(sales) {
           <div class="ranking-row">
             <div class="rank-pos ${i<3?'top':''}">${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</div>
             <div style="flex:1">
-              <div class="rank-name">${r.name.split(' ').slice(0,2).join(' ')}
+              <div class="rank-name">${r.name === DEFAULT_CONSULTANT ? DEFAULT_CONSULTANT : r.name.split(' ').slice(0,2).join(' ')}
                 ${r.name===session.name?'<span class="tag" style="background:#e8f5e9;color:#2e7d32;font-size:10px">Você</span>':''}
               </div>
               <div class="rank-detail">${roleBreakdownText(r.breakdown)}</div>
@@ -2366,7 +2368,7 @@ function updateCompare() {
       consultants: consultants.length,
       ranked: consultants.map(c => {
         const cs = salesForConsultant(c, sales);
-        return {name:c.split(' ').slice(0,2).join(' '), comm:calcCommission(cs), new:cs.filter(s=>s.type==='new').length, ren:cs.filter(s=>s.type==='renewal').length};
+        return {name:shortName(c), comm:calcCommission(cs), new:cs.filter(s=>s.type==='new').length, ren:cs.filter(s=>s.type==='renewal').length};
       }).sort((a,b)=>b.comm-a.comm),
     };
   }
@@ -2512,7 +2514,7 @@ function renderAdmin() {
           <div class="user-row">
             <div class="user-avatar">${u.name[0]}</div>
             <div class="user-info">
-              <div class="un">${u.name.split(' ').slice(0,2).join(' ')}</div>
+              <div class="un">${shortName(u.name)}</div>
               <div class="up">Login: <strong>${login}</strong> · Senha: <em style="color:var(--mid)">oculta (protegida por hash)</em></div>
             </div>
             <button class="btn-edit-pw" onclick="openPwModal('${login}')">Alterar Senha</button>
