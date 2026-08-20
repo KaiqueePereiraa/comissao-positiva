@@ -2099,8 +2099,16 @@ function renderSalesTable(sales) {
         actionCell = `<td>${editBtn}<span class="tag" style="background:#ede7f6;color:#5e35b1;font-size:11px;margin-right:6px">Editada</span><button class="btn-del" onclick="deleteAddedSale('${s.line_id}')" style="font-size:11px;padding:3px 8px">Reverter</button></td>`;
       } else if (isManual) {
         actionCell = `<td>${editBtn}<span class="tag" style="background:#e3f2fd;color:#1565c0;font-size:11px;margin-right:6px">Manual</span><button class="btn-del" onclick="deleteAddedSale('${s.line_id}')" style="font-size:11px;padding:3px 8px">Excluir</button></td>`;
-      } else if (isUnassigned || isAlreadyUnassigned) {
+      } else if (isAlreadyUnassigned) {
+        // O coordenador removeu o dono manualmente antes (via "Remover Dono") — reatribuir
+        // devolve ao consultor original do relatório.
         actionCell = `<td>${editBtn}<button class="btn-sm btn-approve" onclick="reassignSale('${s.line_id}','${s.unit}')" style="font-size:11px">Reatribuir</button></td>`;
+      } else if (isUnassigned) {
+        // Já veio sem consultor do próprio relatório (ex.: "Cadastrado por" em branco) —
+        // não existe um "dono original" pra reatribuir, então só "Editar" (escolher alguém
+        // manualmente) faz sentido aqui. Mostrar "Reatribuir" nesse caso não fazia nada ao
+        // clicar, o que parecia um botão quebrado.
+        actionCell = `<td>${editBtn}</td>`;
       } else {
         actionCell = `<td>${editBtn}<button class="btn-sm btn-reject" onclick="unassignSale('${s.line_id}','${s.unit}')" style="font-size:11px">Remover Dono</button></td>`;
       }
@@ -2642,7 +2650,9 @@ function openEditSaleModal(lineId, unit) {
   unitSel.value = sale.unit;
 
   document.getElementById('add-sale-title').textContent = 'Editar Venda';
-  document.getElementById('add-sale-sub').textContent = sale.needs_review
+  document.getElementById('add-sale-sub').textContent = !sale.consultant
+    ? '⚠ Esta venda veio sem consultor no relatório (campo em branco) — escolha quem deve receber no campo "Consultor" abaixo.'
+    : sale.needs_review
     ? '⚠ Este plano não está na tabela de comissões — ajuste o valor correto abaixo.'
     : 'Corrija os dados desta venda. A alteração fica registrada e sincronizada.';
   document.getElementById('add-sale-submit').textContent = 'Salvar Alterações';
