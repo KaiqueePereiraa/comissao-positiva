@@ -1322,18 +1322,26 @@ function weekTierNextGoal(unit, count) {
 // conversão que ela ganhou fechando venda de outra pessoa (política confirmada).
 function computeWeeklyBreakdown(sales) {
   const counts = {};
+  // `seenKeys` registra TODA combinação consultor+unidade+semana que teve QUALQUER venda
+  // (inclusive só conversão, sem nenhum cadastro/renovação) — sem isso, uma pessoa que só
+  // converteu naquela semana (0 contratos de meta) nunca teria uma chave em `counts`, e o
+  // saleWeekPct() caía no fallback de "chave não encontrada" pagando 100% por engano em vez
+  // de aplicar a faixa 0% de quem não cadastrou ninguém.
+  const seenKeys = new Set();
   sales.forEach(s => {
     if (!s.consultant) return;
-    if (s.role !== 'cadastro' && s.role !== 'consultor' && s.role !== 'completo') return;
     const wk = weekIndexForSale(s);
     if (!wk) return;
     const key = s.consultant + '|' + s.unit + '|' + wk;
-    counts[key] = (counts[key] || 0) + 1;
+    seenKeys.add(key);
+    if (s.role === 'cadastro' || s.role === 'consultor' || s.role === 'completo') {
+      counts[key] = (counts[key] || 0) + 1;
+    }
   });
   const pctByKey = {};
-  Object.keys(counts).forEach(key => {
+  seenKeys.forEach(key => {
     const unit = key.split('|')[1];
-    pctByKey[key] = weeklyTierPct(unit, counts[key]);
+    pctByKey[key] = weeklyTierPct(unit, counts[key] || 0);
   });
   return {counts, pctByKey};
 }
