@@ -545,7 +545,7 @@ select:focus{border-color:var(--navy)}
 
 <!-- MODAL DETALHE DA SEMANA (Semanal) -->
 <div class="modal-overlay" id="modal-week-detail">
-  <div class="modal" style="max-width:640px">
+  <div class="modal" style="max-width:800px">
     <h3 id="week-detail-title">Detalhe da semana</h3>
     <div class="modal-info" id="week-detail-info"></div>
     <div id="week-detail-body"></div>
@@ -1819,6 +1819,7 @@ function openWeekDetailModal(name, unit, wk) {
     return `<tr>
       <td>${s.student}</td>
       <td>${typeTxt}</td>
+      <td style="font-size:12px">${s.contract}</td>
       <td>${roleLabel(s)}${!isMeta ? '<div style="font-size:10px;color:var(--mid)">não conta pra meta</div>' : ''}</td>
       <td style="text-align:right">R$ ${money(p ? p.commission : s.commission)}</td>
     </tr>`;
@@ -1826,7 +1827,7 @@ function openWeekDetailModal(name, unit, wk) {
 
   document.getElementById('week-detail-body').innerHTML = weekSales.length ? `
     <table class="data-table">
-      <thead><tr><th>Aluno</th><th>Tipo</th><th>Papel</th><th style="text-align:right">Valor</th></tr></thead>
+      <thead><tr><th>Aluno</th><th>Tipo</th><th>Contrato</th><th>Papel</th><th style="text-align:right">Valor</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>` : '<div class="empty-state" style="padding:16px 0"><p>Nenhuma venda dessa pessoa nessa semana.</p></div>';
 
