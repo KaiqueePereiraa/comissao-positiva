@@ -134,7 +134,9 @@ body{font-family:'Avenir Next','Avenir','Montserrat',sans-serif;background:var(-
 .tabs-bar{
   background:var(--white);border-bottom:1px solid #e8eaed;
   padding:0 32px;display:flex;gap:4px;
+  overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;
 }
+.tabs-bar::-webkit-scrollbar{display:none}
 .tab-btn{
   padding:16px 20px;border:none;background:transparent;
   font-family:inherit;font-size:14px;font-weight:700;color:var(--mid);
@@ -1032,10 +1034,24 @@ function buildTabs() {
     });
     activeUnit = null;
   } else {
-    const btn = document.createElement('button');
-    btn.className = 'tab-btn active';
-    btn.textContent = 'Meu Dashboard';
-    bar.appendChild(btn);
+    // Consultor com vendas em mais de uma unidade precisa conseguir trocar entre elas
+    // pra ver o desempenho de cada uma separadamente — antes só existia "Meu Dashboard"
+    // (visão combinada de todas as unidades), sem nenhum jeito de isolar uma só.
+    const myUnits = [...new Set(RAW_SALES.filter(s => s.consultant === session.name).map(s => s.unit))];
+    const allBtn = document.createElement('button');
+    allBtn.className = 'tab-btn active';
+    allBtn.textContent = 'Meu Dashboard';
+    allBtn.onclick = () => switchUnit(null, allBtn);
+    bar.appendChild(allBtn);
+    if (myUnits.length > 1) {
+      myUnits.forEach(uk => {
+        const btn = document.createElement('button');
+        btn.className = 'tab-btn';
+        btn.textContent = UNIT_LABELS[uk] || uk;
+        btn.onclick = () => switchUnit(uk, btn);
+        bar.appendChild(btn);
+      });
+    }
     activeUnit = null;
   }
 
@@ -1851,15 +1867,24 @@ function renderWeekly(rawSales) {
   const bonusCardsHtml = unitsInView.map(weekBonusCard).join('');
 
   if (!isCoord) {
-    const myUnit = activeUnit || (rawSales.find(s=>s.consultant===session.name)?.unit);
-    const myWeeks = personWeeklyRows(session.name, myUnit, rawSales, priced);
+    // Quem vende em mais de uma unidade tem uma aba por unidade (ver buildTabs()) — aqui só
+    // falta cobrir a visão combinada ("Meu Dashboard", sem unidade selecionada): mostra a
+    // semana de CADA unidade em que a pessoa vende, não só a primeira que aparecer nos dados.
+    const myUnits = activeUnit ? [activeUnit] : [...new Set(RAW_SALES.filter(s => s.consultant === session.name).map(s => s.unit))];
+    const myBonusHtml = (activeUnit ? unitsInView : myUnits).map(weekBonusCard).join('');
+    const sectionsHtml = myUnits.map(uk => {
+      const myWeeks = personWeeklyRows(session.name, uk, rawSales, priced);
+      return `
+        ${myUnits.length > 1 ? `<p class="page-title" style="font-size:17px;margin-top:20px">${UNIT_LABELS[uk]||uk}</p>` : ''}
+        <div class="kpi-grid">${myWeeks.map(w => weekCardHtml(w, uk, session.name)).join('')}</div>`;
+    }).join('');
     el.innerHTML = `
       <p class="page-title">Minha Semana</p>
       <p class="page-sub">${activeMonth} · meta contada pelos contratos que você cadastrou (ou rematrícula/renovação sua)</p>
-      <div class="kpi-grid">${myWeeks.map(w => weekCardHtml(w, myUnit, session.name)).join('')}</div>
+      ${sectionsHtml}
       <p class="page-title" style="font-size:17px;margin-top:8px">Bônus de Equipe</p>
       <p class="page-sub">Coletivo — pago junto com a comissão individual</p>
-      <div class="kpi-grid">${bonusCardsHtml}</div>
+      <div class="kpi-grid">${myBonusHtml}</div>
     `;
     return;
   }
